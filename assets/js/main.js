@@ -1,11 +1,13 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 /* ===============================
    ESCENA
 ================================ */
 
 const scene = new THREE.Scene();
+const loader = new GLTFLoader();
 
 scene.background = new THREE.Color(0x101820);
 
@@ -105,43 +107,296 @@ floor.receiveShadow = true;
 
 scene.add(floor);
 
-
 /* ===============================
-   OBJETOS TEMPORALES
+   PRUEBA MODELO GLTF
 ================================ */
 
-const boxGeometry =
-    new THREE.BoxGeometry(
-        1,
-        1,
-        1
-    );
+/* ===============================
+   PISO MODULAR - NIVEL 1
+================================ */
 
-const boxMaterial =
-    new THREE.MeshStandardMaterial({
-        color: 0xff9800
-    });
+loader.load(
+    "./assets/models/environment/level1/platforms/Platform_Metal.gltf",
 
+    function (gltf) {
 
-for (let i = 0; i < 8; i++) {
+        const platformOriginal = gltf.scene;
 
-    const box =
-        new THREE.Mesh(
-            boxGeometry,
-            boxMaterial
+        platformOriginal.traverse((child) => {
+
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+
+        });
+
+        // Crear una cuadrícula de plataformas
+        for (let x = -3; x <= 3; x++) {
+
+            for (let z = -2; z <= 2; z++) {
+
+                const platform =
+                    platformOriginal.clone(true);
+
+                platform.position.set(
+                    x * 4,
+                    0.05,
+                    z * 4
+                );
+
+                scene.add(platform);
+            }
+        }
+
+        console.log(
+            "Piso modular del Nivel 1 cargado correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+
+        console.error(
+            "Error cargando el piso modular:",
+            error
         );
 
-    box.position.set(
-        Math.random() * 12 - 6,
-        0.5,
-        Math.random() * 12 - 6
-    );
+    }
+);
+/* ===============================
+   PARED DEL FONDO - NIVEL 1
+================================ */
 
-    box.castShadow = true;
-    box.receiveShadow = true;
+loader.load(
+    "./assets/models/environment/level1/walls/WallAstra_Straight.gltf",
 
-    scene.add(box);
-}
+    function (gltf) {
+
+        const wallOriginal = gltf.scene;
+
+        // Medir automáticamente el modelo
+        const box = new THREE.Box3().setFromObject(wallOriginal);
+        const size = new THREE.Vector3();
+
+        box.getSize(size);
+
+        console.log("Tamaño WallAstra:", {
+            x: size.x,
+            y: size.y,
+            z: size.z
+        });
+
+        wallOriginal.traverse((child) => {
+
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+
+        });
+
+        // ===============================
+        // PARED DEL FONDO
+        // ===============================
+        for (let x = -3; x <= 3; x++) {
+
+            const wall = wallOriginal.clone(true);
+
+            // Girar 90 grados para que el ancho
+            // de la pared quede sobre el eje X
+            wall.rotation.y = Math.PI / 2;
+
+            wall.position.set(
+                x * 4,
+                0,
+                -12
+            );
+
+            scene.add(wall);
+        }
+        // ===============================
+        // PARED LATERAL IZQUIERDA
+        // ===============================
+
+        for (let z = -2; z <= 2; z++) {
+
+            const wall = wallOriginal.clone(true);
+
+            // Aquí NO se gira.
+            // El modelo original ya mide 4 unidades sobre Z.
+            wall.rotation.y = 0;
+
+            wall.position.set(
+                -12,
+                0,
+                z * 4
+            );
+
+            scene.add(wall);
+        }
+        // ===============================
+        // PARED LATERAL DERECHA
+        // ===============================
+
+        for (let z = -2; z <= 2; z++) {
+
+            const wall = wallOriginal.clone(true);
+
+            // El modelo original se extiende sobre Z
+            wall.rotation.y = 0;
+
+            wall.position.set(
+                16,
+                0,
+                z * 4
+            );
+
+            scene.add(wall);
+        }
+
+        console.log(
+            "Pared del fondo cargada correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+
+        console.error(
+            "Error cargando la pared del fondo:",
+            error
+        );
+
+    }
+);
+
+/* ===============================
+   ENTRADA PRINCIPAL - NIVEL 1
+================================ */
+
+loader.load(
+    "./assets/models/environment/level1/platforms/Door_Frame_SquareTall.gltf",
+
+    function (gltf) {
+
+        const doorFrame = gltf.scene;
+
+        doorFrame.traverse((child) => {
+
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+
+        });
+
+        // Posición temporal para poder observarlo
+        doorFrame.position.set(
+            2,
+            0,
+            9.74
+        );
+
+        scene.add(doorFrame);
+
+        // Medir el modelo
+        const box =
+            new THREE.Box3().setFromObject(doorFrame);
+
+        const size =
+            new THREE.Vector3();
+
+        box.getSize(size);
+
+        console.log(
+            "Tamaño Door_Frame_SquareTall:",
+            {
+                x: size.x,
+                y: size.y,
+                z: size.z
+            }
+        );
+
+        console.log(
+            "Marco de puerta cargado correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+
+        console.error(
+            "Error cargando marco de puerta:",
+            error
+        );
+
+    }
+);
+
+
+
+
+loader.load(
+    "./assets/models/environment/level1/platforms/Door_DarkMetal.gltf",
+
+    function (gltf) {
+
+        const door = gltf.scene;
+
+        door.traverse((child) => {
+
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+
+        });
+
+        door.position.set(
+            2,
+            0,
+            9.74
+        );
+
+        scene.add(door);
+
+        const box =
+            new THREE.Box3().setFromObject(door);
+
+        const size =
+            new THREE.Vector3();
+
+        box.getSize(size);
+
+        console.log(
+            "Tamaño Door_DarkMetal:",
+            {
+                x: size.x,
+                y: size.y,
+                z: size.z
+            }
+        );
+
+        console.log(
+            "Puerta cargada correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+
+        console.error(
+            "Error cargando puerta:",
+            error
+        );
+
+    }
+);
 
 
 /* ===============================
