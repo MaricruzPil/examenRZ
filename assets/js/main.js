@@ -12,6 +12,21 @@ const loader = new GLTFLoader();
 const fbxLoader = new FBXLoader();
 const clock = new THREE.Clock();
 let r0Mixer = null;
+let r0 = null;
+let currentR0Action = null;
+let isR0Attacking = false;
+const r0Actions = {};
+const r0Keys = {
+    w: false,
+    a: false,
+    s: false,
+    d: false,
+    shift: false,
+    f: false
+};
+const r0MoveDirection = new THREE.Vector3();
+const r0WalkSpeed = 3;
+const r0RunSpeed = 6;
 
 scene.background = new THREE.Color(0x101820);
 
@@ -394,6 +409,8 @@ fbxLoader.load(
 
     function (xbot) {
 
+        r0 = xbot;
+
         xbot.traverse((child) => {
 
             if (child.isMesh) {
@@ -413,6 +430,33 @@ fbxLoader.load(
 
         r0Mixer = new THREE.AnimationMixer(xbot);
 
+        r0Mixer.addEventListener(
+            "finished",
+            (event) => {
+
+                if (event.action === r0Actions.attack) {
+
+                    isR0Attacking = false;
+
+                    if (
+                        r0Keys.w ||
+                        r0Keys.a ||
+                        r0Keys.s ||
+                        r0Keys.d
+                    ) {
+                        playR0Action(
+                            r0Keys.shift
+                                ? "run"
+                                : "walk"
+                        );
+                    } else {
+                        playR0Action("idle");
+                    }
+                }
+
+            }
+        );
+
         console.log(
             "R-0 cargado correctamente"
         );
@@ -424,12 +468,13 @@ fbxLoader.load(
 
                 if (idle.animations.length > 0) {
 
-                    const action =
+                    r0Actions.idle =
                         r0Mixer.clipAction(
                             idle.animations[0]
                         );
 
-                    action.stop();
+                    r0Actions.idle.play();
+                    currentR0Action = r0Actions.idle;
 
                     console.log(
                         "Animación Idle cargada correctamente"
@@ -443,12 +488,12 @@ fbxLoader.load(
 
                         if (walk.animations.length > 0) {
 
-                            const action =
+                            r0Actions.walk =
                                 r0Mixer.clipAction(
                                     walk.animations[0]
                                 );
 
-                            action.stop();
+                            r0Actions.walk.stop();
 
                             console.log(
                                 "Animación Walk cargada correctamente"
@@ -462,12 +507,12 @@ fbxLoader.load(
 
                                 if (run.animations.length > 0) {
 
-                                    const action =
+                                    r0Actions.run =
                                         r0Mixer.clipAction(
                                             run.animations[0]
                                         );
 
-                                    action.stop();
+                                    r0Actions.run.stop();
 
                                     console.log(
                                         "Animación Run cargada correctamente"
@@ -481,12 +526,17 @@ fbxLoader.load(
 
                                         if (attack.animations.length > 0) {
 
-                                            const action =
+                                            r0Actions.attack =
                                                 r0Mixer.clipAction(
                                                     attack.animations[0]
                                                 );
 
-                                            action.play();
+                                            r0Actions.attack.setLoop(
+                                                THREE.LoopOnce
+                                            );
+
+                                            r0Actions.attack.clampWhenFinished = true;
+                                            r0Actions.attack.stop();
 
                                             console.log(
                                                 "Animación Attack cargada correctamente"
@@ -627,6 +677,94 @@ startButton.addEventListener(
 );
 
 
+window.addEventListener(
+    "keydown",
+    (event) => {
+
+        const key = event.key.toLowerCase();
+
+        if (key === "f" && !r0Keys.f) {
+            playR0Attack();
+            r0Keys.f = true;
+        }
+
+        if (key in r0Keys) {
+            r0Keys[key] = true;
+        }
+
+        if (event.key === "Shift") {
+            r0Keys.shift = true;
+        }
+
+    }
+);
+
+window.addEventListener(
+    "keyup",
+    (event) => {
+
+        const key = event.key.toLowerCase();
+
+        if (key in r0Keys) {
+            r0Keys[key] = false;
+        }
+
+        if (key === "f") {
+            r0Keys.f = false;
+        }
+
+        if (event.key === "Shift") {
+            r0Keys.shift = false;
+        }
+
+    }
+);
+
+
+function playR0Action(name) {
+
+    const nextAction = r0Actions[name];
+
+    if (!nextAction || currentR0Action === nextAction) {
+        return;
+    }
+
+    if (currentR0Action) {
+        currentR0Action.fadeOut(0.2);
+    }
+
+    nextAction
+        .reset()
+        .fadeIn(0.2)
+        .play();
+
+    currentR0Action = nextAction;
+}
+
+
+function playR0Attack() {
+
+    const attackAction = r0Actions.attack;
+
+    if (!attackAction || isR0Attacking) {
+        return;
+    }
+
+    isR0Attacking = true;
+
+    if (currentR0Action) {
+        currentR0Action.fadeOut(0.2);
+    }
+
+    attackAction
+        .reset()
+        .fadeIn(0.2)
+        .play();
+
+    currentR0Action = attackAction;
+}
+
+
 /* ===============================
    RESPONSIVE
 ================================ */
@@ -662,6 +800,66 @@ function animate() {
 
     if (r0Mixer) {
         r0Mixer.update(delta);
+    }
+
+    if (r0) {
+
+        r0MoveDirection.set(0, 0, 0);
+
+        if (r0Keys.w) {
+            r0MoveDirection.z -= 1;
+        }
+
+        if (r0Keys.s) {
+            r0MoveDirection.z += 1;
+        }
+
+        if (r0Keys.a) {
+            r0MoveDirection.x -= 1;
+        }
+
+        if (r0Keys.d) {
+            r0MoveDirection.x += 1;
+        }
+
+        if (isR0Attacking) {
+            r0MoveDirection.set(0, 0, 0);
+        } else if (r0MoveDirection.lengthSq() > 0) {
+
+            r0MoveDirection.normalize();
+
+            const speed =
+                r0Keys.shift
+                    ? r0RunSpeed
+                    : r0WalkSpeed;
+
+            r0.position.x +=
+                r0MoveDirection.x *
+                speed *
+                delta;
+
+            r0.position.z +=
+                r0MoveDirection.z *
+                speed *
+                delta;
+
+            r0.rotation.y =
+                Math.atan2(
+                    r0MoveDirection.x,
+                    r0MoveDirection.z
+                );
+
+            playR0Action(
+                r0Keys.shift
+                    ? "run"
+                    : "walk"
+            );
+
+        } else {
+
+            playR0Action("idle");
+
+        }
     }
 
     controls.update();
