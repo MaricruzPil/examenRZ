@@ -132,6 +132,8 @@ loader.load(
         });
 
         // Crear una cuadrícula de plataformas
+        const floorGroup = new THREE.Group();
+
         for (let x = -3; x <= 3; x++) {
 
             for (let z = -2; z <= 2; z++) {
@@ -145,9 +147,11 @@ loader.load(
                     z * 4
                 );
 
-                scene.add(platform);
+                floorGroup.add(platform);
             }
         }
+
+        scene.add(floorGroup);
 
         console.log(
             "Piso modular del Nivel 1 cargado correctamente"
@@ -175,18 +179,6 @@ loader.load(
     function (gltf) {
 
         const wallOriginal = gltf.scene;
-
-        // Medir automáticamente el modelo
-        const box = new THREE.Box3().setFromObject(wallOriginal);
-        const size = new THREE.Vector3();
-
-        box.getSize(size);
-
-        console.log("Tamaño WallAstra:", {
-            x: size.x,
-            y: size.y,
-            z: size.z
-        });
 
         wallOriginal.traverse((child) => {
 
@@ -256,6 +248,31 @@ loader.load(
             scene.add(wall);
         }
 
+        // ===============================
+        // PARED FRONTAL
+        // ===============================
+
+        const frontWallPositions = [-12, -8, -4, 8, 12];
+
+        const frontWallGroup = new THREE.Group();
+
+        frontWallPositions.forEach((x) => {
+
+            const wall = wallOriginal.clone(true);
+
+            wall.rotation.y = Math.PI / 2;
+
+            wall.position.set(
+                x,
+                0,
+                8
+            );
+
+            frontWallGroup.add(wall);
+        });
+
+        scene.add(frontWallGroup);
+
         console.log(
             "Pared del fondo cargada correctamente"
         );
@@ -302,24 +319,6 @@ loader.load(
 
         scene.add(doorFrame);
 
-        // Medir el modelo
-        const box =
-            new THREE.Box3().setFromObject(doorFrame);
-
-        const size =
-            new THREE.Vector3();
-
-        box.getSize(size);
-
-        console.log(
-            "Tamaño Door_Frame_SquareTall:",
-            {
-                x: size.x,
-                y: size.y,
-                z: size.z
-            }
-        );
-
         console.log(
             "Marco de puerta cargado correctamente"
         );
@@ -363,23 +362,6 @@ loader.load(
         );
 
         scene.add(door);
-
-        const box =
-            new THREE.Box3().setFromObject(door);
-
-        const size =
-            new THREE.Vector3();
-
-        box.getSize(size);
-
-        console.log(
-            "Tamaño Door_DarkMetal:",
-            {
-                x: size.x,
-                y: size.y,
-                z: size.z
-            }
-        );
 
         console.log(
             "Puerta cargada correctamente"
