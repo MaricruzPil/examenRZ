@@ -98,15 +98,28 @@
                     01
                 </div>
 
-                <div>
+                <div class="directive-content">
+
                     <span class="directive-label">
-                        MISSION DIRECTIVE
+                        MISSION DIRECTIVE // EMERGENCY PROTOCOL
                     </span>
 
                     <p>
-                        Una falla crítica amenaza con destruir la instalación.
-                        Recupera el control antes de que Reactor Zero colapse.
+                        Una falla crítica ha dejado fuera de control
+                        las instalaciones de Reactor Zero.
                     </p>
+
+                    <p class="directive-story">
+                        La unidad autónoma <strong>R-0</strong> ha sido desplegada
+                        para ingresar al complejo, restaurar los sistemas esenciales
+                        y alcanzar el núcleo antes de que el reactor colapse.
+                    </p>
+
+                    <div class="directive-first-objective">
+                        <span>PRIMER OBJETIVO</span>
+                        RESTAURAR ENERGÍA // SECTOR FÁBRICA
+                    </div>
+
                 </div>
 
             </div>
@@ -165,6 +178,37 @@
         </div>
 
     </div>
+
+    <!-- Introducción del Nivel 1 -->
+    <div id="level-intro" class="hidden">
+
+        <div class="level-intro-content">
+
+            <span class="intro-sector">
+                FACILITY // SECTOR 01
+            </span>
+
+            <h2>FÁBRICA</h2>
+
+            <div class="intro-line"></div>
+
+            <span class="intro-mission">
+                RESTAURACIÓN DE ENERGÍA
+            </span>
+
+            <p>
+                Reactiva los 3 generadores auxiliares
+                para recuperar el suministro del sector.
+            </p>
+
+            <div class="intro-objective">
+                OBJECTIVE // <strong>0 / 3</strong>
+            </div>
+
+        </div>
+
+    </div>
+
 
     <div id="hud" class="hidden">
 
@@ -248,123 +292,120 @@
 
     </div>
     <!-- Nivel completado -->
-<div id="level-complete" class="hidden">
+    <div id="level-complete" class="hidden">
 
-    <div class="complete-terminal">
+        <div class="complete-terminal">
 
-        <!-- Barra superior -->
-        <div class="complete-top">
-            <span>RZ // SYSTEM RECOVERY</span>
-            <span class="complete-id">FAC-01</span>
-        </div>
-
-        <!-- Cabecera -->
-        <div class="complete-header">
-
-            <div class="complete-status">
-                <span class="complete-check">✓</span>
-                POWER GRID RESTORED
+            <!-- Barra superior -->
+            <div class="complete-top">
+                <span>RZ // SYSTEM RECOVERY</span>
+                <span class="complete-id">FAC-01</span>
             </div>
 
-            <h2>
-                ENERGÍA
-                <span>RESTAURADA</span>
-            </h2>
+            <!-- Cabecera -->
+            <div class="complete-header">
 
-            <p class="complete-subtitle">
-                SYSTEM REPORT // LEVEL 01
-            </p>
+                <div class="complete-status">
+                    <span class="complete-check">✓</span>
+                    POWER GRID RESTORED
+                </div>
 
-        </div>
+                <h2>
+                    ENERGÍA
+                    <span>RESTAURADA</span>
+                </h2>
 
-        <!-- Reporte -->
-        <div class="recovery-report">
-
-            <div class="recovery-title">
-                <span>REPORTE DE SISTEMA</span>
-                <span>03 / 03</span>
-            </div>
-
-            <div class="recovery-row">
-                <span>GENERATOR 01</span>
-                <span class="recovery-online">
-                    <i></i>
-                    ONLINE
-                </span>
-            </div>
-
-            <div class="recovery-row">
-                <span>GENERATOR 02</span>
-                <span class="recovery-online">
-                    <i></i>
-                    ONLINE
-                </span>
-            </div>
-
-            <div class="recovery-row">
-                <span>GENERATOR 03</span>
-                <span class="recovery-online">
-                    <i></i>
-                    ONLINE
-                </span>
-            </div>
-
-            <div class="recovery-row recovery-main">
-                <span>FACILITY POWER</span>
-                <span class="recovery-online">
-                    <i></i>
-                    STABLE
-                </span>
-            </div>
-
-        </div>
-
-        <!-- Objetivo -->
-        <div class="complete-objective">
-
-            <div class="complete-objective-number">
-                03
-                <small>/03</small>
-            </div>
-
-            <div>
-                <span>OBJECTIVES COMPLETE</span>
-
-                <p>
-                    Los generadores de la fábrica están operativos.
-                    El suministro energético del sector ha sido restaurado.
+                <p class="complete-subtitle">
+                    SYSTEM REPORT // LEVEL 01
                 </p>
+
             </div>
 
-        </div>
+            <!-- Reporte -->
+            <div class="recovery-report">
 
-        <!-- Acción -->
-        <div class="complete-action">
+                <div class="recovery-title">
+                    <span>REPORTE DE SISTEMA</span>
+                    <span>03 / 03</span>
+                </div>
 
-            <div class="complete-ready">
-                <span></span>
-                SYS.STATUS // OPERATIONAL
+                <div class="recovery-row">
+                    <span>GENERATOR 01</span>
+                    <span class="recovery-online">
+                        <i></i>
+                        ONLINE
+                    </span>
+                </div>
+
+                <div class="recovery-row">
+                    <span>GENERATOR 02</span>
+                    <span class="recovery-online">
+                        <i></i>
+                        ONLINE
+                    </span>
+                </div>
+
+                <div class="recovery-row">
+                    <span>GENERATOR 03</span>
+                    <span class="recovery-online">
+                        <i></i>
+                        ONLINE
+                    </span>
+                </div>
+
+                <div class="recovery-row recovery-main">
+                    <span>FACILITY POWER</span>
+                    <span class="recovery-online">
+                        <i></i>
+                        STABLE
+                    </span>
+                </div>
+
             </div>
 
-            <button
-                id="next-level-button"
-                class="complete-button"
-            >
-                <span>▶</span>
-                CONTINUAR PROTOCOLO
-            </button>
+            <!-- Objetivo -->
+            <div class="complete-objective">
 
-        </div>
+                <div class="complete-objective-number">
+                    03
+                    <small>/03</small>
+                </div>
 
-        <!-- Pie -->
-        <div class="complete-footer">
-            <span>LEVEL 01 // FACTORY</span>
-            <span>RECOVERY CONFIRMED</span>
+                <div>
+                    <span>OBJECTIVES COMPLETE</span>
+
+                    <p>
+                        Los generadores de la fábrica están operativos.
+                        El suministro energético del sector ha sido restaurado.
+                    </p>
+                </div>
+
+            </div>
+
+            <!-- Acción -->
+            <div class="complete-action">
+
+                <div class="complete-ready">
+                    <span></span>
+                    SYS.STATUS // OPERATIONAL
+                </div>
+
+                <button id="next-level-button" class="complete-button">
+                    <span>▶</span>
+                    CONTINUAR PROTOCOLO
+                </button>
+
+            </div>
+
+            <!-- Pie -->
+            <div class="complete-footer">
+                <span>LEVEL 01 // FACTORY</span>
+                <span>RECOVERY CONFIRMED</span>
+            </div>
+
         </div>
 
     </div>
-
-</div>
 
     <script type="module" src="./assets/js/main.js"></script>
 

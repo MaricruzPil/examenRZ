@@ -9,8 +9,11 @@ import RAPIER from "https://cdn.skypack.dev/@dimforge/rapier3d-compat";
 ================================ */
 
 const scene = new THREE.Scene();
-const loader = new GLTFLoader();
-const fbxLoader = new FBXLoader();
+const loadingManager = new THREE.LoadingManager();
+const loader = new GLTFLoader(loadingManager);
+const fbxLoader = new FBXLoader(loadingManager);
+
+
 const clock = new THREE.Clock();
 let playerBody = null;
 let playerCollider = null;
@@ -2022,6 +2025,162 @@ function createDynamicBarrel(
     });
 }
 /* ===============================
+   DECORACIÓN DEL NIVEL 1
+   Cable industrial de prueba
+================================ */
+
+loader.load(
+    "./assets/models/decoration/Prop_Cable_3.gltf",
+
+    function (gltf) {
+
+        const cable = gltf.scene;
+
+        cable.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        // Posición temporal para revisar el modelo
+        cable.position.set(
+            -8,
+            0.08,
+            -4.8
+        );
+
+        cable.rotation.y = Math.PI / 2;
+
+        scene.add(cable);
+
+        console.log(
+            "Prop_Cable_3 cargado correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+        console.error(
+            "Error cargando Prop_Cable_3:",
+            error
+        );
+    }
+);
+
+/* ===============================
+   DECORACIÓN DEL NIVEL 1
+   Terminal de computadora de prueba
+================================ */
+
+loader.load(
+    "./assets/models/decoration/Prop_Computer.gltf",
+
+    function (gltf) {
+
+        const computer = gltf.scene;
+
+        computer.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        // Posición temporal para revisar tamaño y orientación
+        computer.position.set(
+            13.5,
+            0.1,
+            -5
+        );
+
+        computer.rotation.y = -Math.PI / 2;
+
+        scene.add(computer);
+        const computer2 = computer.clone(true);
+
+        computer2.position.set(
+            -13.5,
+            0.1,
+            4
+        );
+
+        computer2.rotation.y = Math.PI / 2;
+
+        scene.add(computer2);
+
+        console.log(
+            "Prop_Computer cargado correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+        console.error(
+            "Error cargando Prop_Computer:",
+            error
+        );
+    }
+);
+
+/* ===============================
+   DECORACIÓN DEL NIVEL 1
+   Rejilla de ventilación industrial
+================================ */
+
+loader.load(
+    "./assets/models/decoration/Prop_Vent_Big.gltf",
+
+    function (gltf) {
+
+        const vent = gltf.scene;
+
+        vent.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        const ventPositions = [
+            { x: 10.5, z: -8 },
+            { x: -10.5, z: -8 },
+            { x: 10.5, z: 7 }
+        ];
+
+        ventPositions.forEach((position) => {
+
+            const ventClone = vent.clone(true);
+
+            ventClone.position.set(
+                position.x,
+                0.08,
+                position.z
+            );
+
+            scene.add(ventClone);
+        });
+
+        console.log(
+            "Prop_Vent_Big cargado correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+        console.error(
+            "Error cargando Prop_Vent_Big:",
+            error
+        );
+    }
+);
+
+
+
+/* ===============================
    PERSONAJE R-0 - PRUEBA
 ================================ */
 
@@ -2321,6 +2480,36 @@ const startButton =
         "start-button"
     );
 
+const terminalReady =
+    document.querySelector(
+        ".terminal-ready"
+    );
+
+// Bloquear inicio mientras cargan los recursos
+startButton.disabled = true;
+
+startButton.innerHTML =
+    "<span>⌛</span> CARGANDO SISTEMAS...";
+
+terminalReady.innerHTML =
+    "<span></span> INICIALIZANDO REACTOR ZERO";
+
+// Habilitar inicio cuando todos los recursos estén listos
+loadingManager.onLoad = () => {
+
+    console.log(
+        "Todos los recursos del juego han terminado de cargar"
+    );
+
+    startButton.disabled = false;
+
+    startButton.innerHTML =
+        "<span>▶</span> INICIAR PROTOCOLO";
+
+    terminalReady.innerHTML =
+        "<span></span> SISTEMA LISTO // ESPERANDO OPERADOR";
+};
+
 startButton.addEventListener(
     "click",
     () => {
@@ -2331,6 +2520,14 @@ startButton.addEventListener(
             )
             .classList
             .add("hidden");
+        const levelIntro =
+            document.getElementById("level-intro");
+
+        levelIntro.classList.remove("hidden");
+
+        setTimeout(() => {
+            levelIntro.classList.add("hidden");
+        }, 1000);
 
         document
             .getElementById(
