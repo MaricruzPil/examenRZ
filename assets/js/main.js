@@ -46,6 +46,13 @@ const cameraFollowPosition =
     new THREE.Vector3();
 const cameraLookTarget =
     new THREE.Vector3();
+// Detección de obstáculos entre R-0 y la cámara
+const cameraRaycaster = new THREE.Raycaster();
+
+const cameraRayDirection =
+    new THREE.Vector3();
+
+const cameraObstacles = [];
 
 await RAPIER.init();
 
@@ -121,8 +128,46 @@ console.log(
     "Collider pared trasera creado correctamente"
 );
 
-scene.background = new THREE.Color(0x101820);
+// Ambiente exterior industrial
+const environmentColor = 0x26343d;
 
+scene.background = new THREE.Color(
+    environmentColor
+);
+
+// Niebla atmosférica
+scene.fog = new THREE.FogExp2(
+    environmentColor,
+    0.030
+);
+/* ===============================
+   TEXTURA DEL FONDO INDUSTRIAL
+================================ */
+
+const backgroundTextureLoader =
+    new THREE.TextureLoader();
+
+const industrialBackgroundTexture =
+    backgroundTextureLoader.load(
+        "./assets/textures/industrial_background.png",
+        () => {
+            console.log(
+                "Textura industrial cargada correctamente"
+            );
+        },
+        undefined,
+        (error) => {
+            console.error(
+                "Error cargando textura industrial:",
+                error
+            );
+        }
+    );
+
+industrialBackgroundTexture.colorSpace =
+    THREE.SRGBColorSpace;
+
+    
 
 /* ===============================
    CÁMARA
@@ -218,10 +263,444 @@ floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 
 scene.add(floor);
-
 /* ===============================
-   PRUEBA MODELO GLTF
+   FONDO INDUSTRIAL
 ================================ */
+
+const industrialBackground = new THREE.Group();
+
+scene.add(industrialBackground);
+
+const backgroundMaterial =
+    new THREE.MeshStandardMaterial({
+        color: 0x18232b,
+        roughness: 0.9,
+        metalness: 0.3
+    });
+
+const towerMaterial =
+    new THREE.MeshStandardMaterial({
+        color: 0x24343d,
+        roughness: 0.85,
+        metalness: 0.4
+    });
+const warningLightMaterial =
+    new THREE.MeshBasicMaterial({
+        color: 0xff3b30
+    });
+function createBackgroundBuilding(
+    x,
+    y,
+    z,
+    width,
+    height,
+    depth
+) {
+
+    const geometry =
+        new THREE.BoxGeometry(
+            width,
+            height,
+            depth
+        );
+
+    const building =
+        new THREE.Mesh(
+            geometry,
+            backgroundMaterial
+        );
+
+    building.position.set(
+        x,
+        y + height / 2,
+        z
+    );
+
+    industrialBackground.add(building);
+
+}
+createBackgroundBuilding(
+    -20, 0, -35,
+    8, 18, 8
+);
+
+createBackgroundBuilding(
+    -8, 0, -42,
+    10, 28, 10
+);
+
+createBackgroundBuilding(
+    8, 0, -38,
+    12, 22, 10
+);
+
+createBackgroundBuilding(
+    22, 0, -45,
+    9, 32, 9
+);
+
+createBackgroundBuilding(
+    35, 0, -40,
+    14, 20, 12
+);
+createBackgroundBuilding(
+    -22, 0, 35,
+    10, 22, 10
+);
+
+createBackgroundBuilding(
+    -8, 0, 42,
+    12, 30, 12
+);
+
+createBackgroundBuilding(
+    10, 0, 38,
+    9, 20, 9
+);
+
+createBackgroundBuilding(
+    25, 0, 44,
+    12, 27, 12
+);
+createBackgroundBuilding(
+    -38, 0, -20,
+    10, 24, 10
+);
+
+createBackgroundBuilding(
+    -42, 0, -5,
+    12, 32, 12
+);
+
+createBackgroundBuilding(
+    -38, 0, 12,
+    9, 19, 9
+);
+
+createBackgroundBuilding(
+    -45, 0, 27,
+    14, 28, 12
+);
+createBackgroundBuilding(
+    38, 0, -22,
+    10, 26, 10
+);
+
+createBackgroundBuilding(
+    43, 0, -7,
+    12, 20, 12
+);
+
+createBackgroundBuilding(
+    39, 0, 10,
+    10, 31, 10
+);
+
+createBackgroundBuilding(
+    44, 0, 27,
+    14, 23, 12
+);
+createIndustrialTower(
+    -15,
+    -40,
+    22
+);
+
+createIndustrialTower(
+    16,
+    -44,
+    30
+);
+
+createIndustrialTower(
+    -38,
+    8,
+    26
+);
+
+createIndustrialTower(
+    40,
+    -5,
+    32
+);
+
+createIndustrialTower(
+    -15,
+    40,
+    28
+);
+
+createIndustrialTower(
+    18,
+    42,
+    24
+);
+// Zona trasera
+createIndustrialBridge(
+    0,
+    14,
+    -40,
+    26,
+    0
+);
+
+// Zona frontal exterior
+createIndustrialBridge(
+    2,
+    17,
+    40,
+    28,
+    0
+);
+
+// Lateral izquierdo
+createIndustrialBridge(
+    -40,
+    15,
+    0,
+    25,
+    Math.PI / 2
+);
+
+// Lateral derecho
+createIndustrialBridge(
+    40,
+    18,
+    2,
+    28,
+    Math.PI / 2
+);
+
+function createIndustrialTower(x, z, height) {
+
+    const towerGroup = new THREE.Group();
+
+    // Cuerpo principal
+    const bodyGeometry =
+        new THREE.CylinderGeometry(
+            2.2,
+            2.8,
+            height,
+            8
+        );
+
+    const body =
+        new THREE.Mesh(
+            bodyGeometry,
+            towerMaterial
+        );
+
+    body.position.y = height / 2;
+
+    towerGroup.add(body);
+
+    // Parte superior
+    const topGeometry =
+        new THREE.CylinderGeometry(
+            1.5,
+            2.2,
+            3,
+            8
+        );
+
+    const top =
+        new THREE.Mesh(
+            topGeometry,
+            towerMaterial
+        );
+
+    top.position.y =
+        height + 1.5;
+
+    towerGroup.add(top);
+
+    // Chimenea
+    const chimneyGeometry =
+        new THREE.CylinderGeometry(
+            0.45,
+            0.65,
+            7,
+            8
+        );
+
+    const chimney =
+        new THREE.Mesh(
+            chimneyGeometry,
+            towerMaterial
+        );
+
+    chimney.position.y =
+        height + 6;
+
+    towerGroup.add(chimney);
+    // Luz de advertencia superior
+    const warningGeometry =
+        new THREE.SphereGeometry(
+            0.35,
+            8,
+            8
+        );
+
+    const warningLight =
+        new THREE.Mesh(
+            warningGeometry,
+            warningLightMaterial
+        );
+
+    warningLight.position.y =
+        height + 9.7;
+
+    towerGroup.add(
+        warningLight
+    );
+    // Resplandor ambiental de la torre
+    const warningGlow =
+        new THREE.PointLight(
+            0xff3b30,
+            12,
+            40,
+            1.5
+        );
+
+    warningGlow.position.y =
+        height + 4;
+
+    towerGroup.add(
+        warningGlow
+    );
+
+    towerGroup.position.set(
+        x,
+        0,
+        z
+    );
+
+    industrialBackground.add(
+        towerGroup
+    );
+   // Halo industrial ambiental
+const glowGeometry =
+    new THREE.SphereGeometry(
+        8,
+        16,
+        16
+    );
+
+const glowMaterial =
+    new THREE.ShaderMaterial({
+
+        transparent: true,
+        depthWrite: false,
+
+        blending:
+            THREE.AdditiveBlending,
+
+        uniforms: {
+            glowColor: {
+                value:
+                    new THREE.Color(
+                        0xff4d2e
+                    )
+            }
+        },
+
+        vertexShader: `
+            varying vec3 vNormal;
+
+            void main() {
+
+                vNormal =
+                    normalize(
+                        normalMatrix * normal
+                    );
+
+                gl_Position =
+                    projectionMatrix *
+                    modelViewMatrix *
+                    vec4(position, 1.0);
+            }
+        `,
+
+        fragmentShader: `
+            varying vec3 vNormal;
+
+            uniform vec3 glowColor;
+
+            void main() {
+
+                float intensity =
+                    pow(
+                        1.0 -
+                        abs(vNormal.z),
+                        2.5
+                    );
+
+                gl_FragColor =
+                    vec4(
+                        glowColor,
+                        intensity * 0.05
+                    );
+            }
+        `
+    });
+    
+
+const industrialGlow =
+    new THREE.Mesh(
+        glowGeometry,
+        glowMaterial
+    );
+
+industrialGlow.position.set(
+    0,
+    height * 0.45,
+    0
+);
+
+towerGroup.add(
+    industrialGlow
+);
+}
+function createIndustrialBridge(
+    x,
+    y,
+    z,
+    width,
+    rotationY = 0
+) {
+    const geometry =
+        new THREE.BoxGeometry(
+            width,
+            1.2,
+            1.4
+        );
+
+    const material =
+        new THREE.MeshStandardMaterial({
+            color: 0x2d3d46,
+            roughness: 0.8,
+            metalness: 0.45
+        });
+
+    const bridge =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    bridge.position.set(
+        x,
+        y,
+        z
+    );
+
+    bridge.rotation.y =
+        rotationY;
+
+    industrialBackground.add(
+        bridge
+    );
+}
 
 /* ===============================
    PISO MODULAR - NIVEL 1
@@ -320,6 +799,7 @@ loader.load(
             );
 
             scene.add(wall);
+            cameraObstacles.push(wall);
         }
         // ===============================
         // PARED LATERAL IZQUIERDA
@@ -345,6 +825,7 @@ loader.load(
         }
 
         scene.add(leftWallGroup);
+        cameraObstacles.push(leftWallGroup);
         // ===============================
         // PARED LATERAL DERECHA
         // ===============================
@@ -368,6 +849,7 @@ loader.load(
         }
 
         scene.add(rightWallGroup);
+        cameraObstacles.push(rightWallGroup);
 
         // ===============================
         // PARED FRONTAL
@@ -646,6 +1128,10 @@ function rebuildFrontFacade() {
 
     scene.add(frontLeftWallGroupModel);
     scene.add(frontRightWallGroupModel);
+    cameraObstacles.push(
+        frontLeftWallGroupModel,
+        frontRightWallGroupModel
+    );
     // Collider actualizado para la pared frontal derecha reconstruida
     frontRightWallGroupModel.updateMatrixWorld(true);
 
@@ -1259,39 +1745,44 @@ fbxLoader.load(
 );
 
 
-/* ===============================
-   GRID
-================================ */
-
-const grid =
-    new THREE.GridHelper(
-        30,
-        30
-    );
-
-scene.add(grid);
 
 
 /* ===============================
    CONTROLES DE CÁMARA
 ================================ */
 
-const controls =
-    new OrbitControls(
-        camera,
-        renderer.domElement
-    );
+const controls = new OrbitControls(
+    camera,
+    renderer.domElement
+);
 
+// Permitir control con mouse
+controls.enabled = true;
+
+// Movimiento suave
 controls.enableDamping = true;
-controls.enabled = false;
+controls.dampingFactor = 0.08;
+
+// No permitir desplazar el punto de enfoque
+controls.enablePan = false;
+
+// Permitir zoom controlado
+controls.enableZoom = true;
+
+controls.minDistance = 3;
+controls.maxDistance = 9;
+
+// Evitar que la cámara pase por debajo del suelo
+controls.minPolarAngle = Math.PI * 0.15;
+
+// Evitar vista completamente vertical
+controls.maxPolarAngle = Math.PI * 0.48;
 
 controls.target.set(
     0,
-    1,
+    1.5,
     0
 );
-
-
 /* ===============================
    BOTÓN INICIAR
 ================================ */
@@ -1342,8 +1833,8 @@ window.addEventListener(
         const key = event.key.toLowerCase();
 
         if (key === "f" &&
-    !r0Keys.f &&
-    !levelCompleted) {
+            !r0Keys.f &&
+            !levelCompleted) {
             playR0Attack();
             r0Keys.f = true;
         }
@@ -1644,22 +2135,74 @@ function animate() {
 
 
 
-        cameraFollowPosition
-            .copy(r0.position)
-            .add(cameraFollowOffset);
-
-        camera.position.lerp(
-            cameraFollowPosition,
-            0.08
-        );
-
+        // La cámara mantiene su posición relativa
+        // mientras sigue a R-0
         cameraLookTarget.set(
             r0.position.x,
             r0.position.y + 1.5,
             r0.position.z
         );
 
-        camera.lookAt(cameraLookTarget);
+        controls.target.lerp(
+            cameraLookTarget,
+            0.12
+        );
+        // ===============================
+        // COLISIÓN DE CÁMARA
+        // ===============================
+
+        // Dirección desde R-0 hacia la cámara
+        cameraRayDirection
+            .copy(camera.position)
+            .sub(cameraLookTarget);
+
+        const cameraDistance =
+            cameraRayDirection.length();
+
+        cameraRayDirection.normalize();
+
+        // Lanzar rayo desde R-0 hacia la cámara
+        cameraRaycaster.set(
+            cameraLookTarget,
+            cameraRayDirection
+        );
+
+        cameraRaycaster.far =
+            cameraDistance;
+
+        // Buscar paredes entre R-0 y la cámara
+        const cameraIntersections =
+            cameraRaycaster.intersectObjects(
+                cameraObstacles,
+                true
+            );
+
+        if (cameraIntersections.length > 0) {
+
+            const hitDistance =
+                cameraIntersections[0].distance;
+
+            // Pequeño margen para evitar que
+            // la cámara quede pegada a la pared
+            const safeDistance =
+                Math.max(
+                    hitDistance - 0.35,
+                    controls.minDistance
+                );
+
+            // Nueva posición antes de la pared
+            const safeCameraPosition =
+                new THREE.Vector3()
+                    .copy(cameraLookTarget)
+                    .addScaledVector(
+                        cameraRayDirection,
+                        safeDistance
+                    );
+
+            camera.position.copy(
+                safeCameraPosition
+            );
+        }
     }
 
     if (controls.enabled) {
