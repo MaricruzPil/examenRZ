@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+import RAPIER from "https://cdn.skypack.dev/@dimforge/rapier3d-compat";
 
 /* ===============================
    ESCENA
@@ -11,8 +12,17 @@ const scene = new THREE.Scene();
 const loader = new GLTFLoader();
 const fbxLoader = new FBXLoader();
 const clock = new THREE.Clock();
+let playerBody = null;
+let playerCollider = null;
+let characterController = null;
 let r0Mixer = null;
 let r0 = null;
+let doorFrameModel = null;
+let wallAstraOriginalModel = null;
+let frontLeftWallGroupModel = null;
+let frontRightWallGroupModel = null;
+let frontDoorFillersGroup = null;
+let frontEntranceBarrierCreated = false;
 let currentR0Action = null;
 let isR0Attacking = false;
 const r0Actions = {};
@@ -33,6 +43,80 @@ const cameraFollowPosition =
     new THREE.Vector3();
 const cameraLookTarget =
     new THREE.Vector3();
+
+await RAPIER.init();
+
+const gravity = {
+    x: 0.0,
+    y: -9.81,
+    z: 0.0
+};
+
+const physicsWorld = new RAPIER.World(gravity);
+
+console.log(
+    "Rapier inicializado correctamente"
+);
+
+const floorBodyDesc =
+    RAPIER.RigidBodyDesc
+        .fixed()
+        .setTranslation(
+            0,
+            -0.05,
+            0
+        );
+
+const floorBody =
+    physicsWorld.createRigidBody(
+        floorBodyDesc
+    );
+
+const floorColliderDesc =
+    RAPIER.ColliderDesc.cuboid(
+        14,
+        0.1,
+        10
+    );
+
+physicsWorld.createCollider(
+    floorColliderDesc,
+    floorBody
+);
+
+console.log(
+    "Collider del piso creado correctamente"
+);
+
+const backWallBodyDesc =
+    RAPIER.RigidBodyDesc
+        .fixed()
+        .setTranslation(
+            0,
+            1.5,
+            -10
+        );
+
+const backWallBody =
+    physicsWorld.createRigidBody(
+        backWallBodyDesc
+    );
+
+const backWallColliderDesc =
+    RAPIER.ColliderDesc.cuboid(
+        14,
+        1.5,
+        0.6
+    );
+
+physicsWorld.createCollider(
+    backWallColliderDesc,
+    backWallBody
+);
+
+console.log(
+    "Collider pared trasera creado correctamente"
+);
 
 scene.background = new THREE.Color(0x101820);
 
@@ -204,6 +288,7 @@ loader.load(
     function (gltf) {
 
         const wallOriginal = gltf.scene;
+        wallAstraOriginalModel = wallOriginal;
 
         wallOriginal.traverse((child) => {
 
@@ -237,25 +322,31 @@ loader.load(
         // PARED LATERAL IZQUIERDA
         // ===============================
 
+        const leftWallGroup = new THREE.Group();
+
         for (let z = -2; z <= 2; z++) {
 
             const wall = wallOriginal.clone(true);
 
             // Aquí NO se gira.
             // El modelo original ya mide 4 unidades sobre Z.
-            wall.rotation.y = 0;
+            wall.rotation.y = Math.PI;
 
             wall.position.set(
-                -12,
+                -16,
                 0,
                 z * 4
             );
 
-            scene.add(wall);
+            leftWallGroup.add(wall);
         }
+
+        scene.add(leftWallGroup);
         // ===============================
         // PARED LATERAL DERECHA
         // ===============================
+
+        const rightWallGroup = new THREE.Group();
 
         for (let z = -2; z <= 2; z++) {
 
@@ -270,8 +361,10 @@ loader.load(
                 z * 4
             );
 
-            scene.add(wall);
+            rightWallGroup.add(wall);
         }
+
+        scene.add(rightWallGroup);
 
         // ===============================
         // PARED FRONTAL
@@ -279,24 +372,178 @@ loader.load(
 
         const frontWallPositions = [-12, -8, -4, 8, 12];
 
-        const frontWallGroup = new THREE.Group();
+        const frontLeftWallGroup = new THREE.Group();
+        const frontRightWallGroup = new THREE.Group();
+        frontLeftWallGroupModel = frontLeftWallGroup;
+        frontRightWallGroupModel = frontRightWallGroup;
 
         frontWallPositions.forEach((x) => {
 
             const wall = wallOriginal.clone(true);
 
-            wall.rotation.y = Math.PI / 2;
+            wall.rotation.y = - Math.PI / 2;
 
             wall.position.set(
                 x,
                 0,
-                8
+                12
             );
 
-            frontWallGroup.add(wall);
+            if (x < 0) {
+                frontLeftWallGroup.add(wall);
+            } else {
+                frontRightWallGroup.add(wall);
+            }
         });
 
-        scene.add(frontWallGroup);
+        scene.add(frontLeftWallGroup);
+        scene.add(frontRightWallGroup);
+
+        const leftWallBox =
+            new THREE.Box3().setFromObject(leftWallGroup);
+        const leftWallCenter =
+            new THREE.Vector3();
+        const leftWallSize =
+            new THREE.Vector3();
+
+        leftWallBox.getCenter(leftWallCenter);
+        leftWallBox.getSize(leftWallSize);
+
+        const leftWallBody =
+            physicsWorld.createRigidBody(
+                RAPIER.RigidBodyDesc
+                    .fixed()
+                    .setTranslation(
+                        leftWallCenter.x,
+                        leftWallCenter.y,
+                        leftWallCenter.z
+                    )
+            );
+
+        physicsWorld.createCollider(
+            RAPIER.ColliderDesc.cuboid(
+                leftWallSize.x / 2,
+                leftWallSize.y / 2,
+                leftWallSize.z / 2
+            ),
+            leftWallBody
+        );
+
+        const rightWallBox =
+            new THREE.Box3().setFromObject(rightWallGroup);
+        const rightWallCenter =
+            new THREE.Vector3();
+        const rightWallSize =
+            new THREE.Vector3();
+
+        rightWallBox.getCenter(rightWallCenter);
+        rightWallBox.getSize(rightWallSize);
+
+
+        console.log("DIAGNÓSTICO PARED DERECHA", {
+    center: {
+        x: rightWallCenter.x,
+        y: rightWallCenter.y,
+        z: rightWallCenter.z
+    },
+    size: {
+        x: rightWallSize.x,
+        y: rightWallSize.y,
+        z: rightWallSize.z
+    },
+    box: {
+        minX: rightWallBox.min.x,
+        maxX: rightWallBox.max.x,
+        minZ: rightWallBox.min.z,
+        maxZ: rightWallBox.max.z
+    }
+});
+
+        const rightWallBody =
+            physicsWorld.createRigidBody(
+                RAPIER.RigidBodyDesc
+                    .fixed()
+                    .setTranslation(
+                        rightWallCenter.x,
+                        rightWallCenter.y,
+                        rightWallCenter.z
+                    )
+            );
+
+        physicsWorld.createCollider(
+            RAPIER.ColliderDesc.cuboid(
+                rightWallSize.x / 2,
+                rightWallSize.y / 2,
+                rightWallSize.z / 2
+            ),
+            rightWallBody
+        );
+
+        const frontLeftWallBox =
+            new THREE.Box3().setFromObject(frontLeftWallGroup);
+        const frontLeftWallCenter =
+            new THREE.Vector3();
+        const frontLeftWallSize =
+            new THREE.Vector3();
+
+        frontLeftWallBox.getCenter(frontLeftWallCenter);
+        frontLeftWallBox.getSize(frontLeftWallSize);
+
+        const frontLeftWallBody =
+            physicsWorld.createRigidBody(
+                RAPIER.RigidBodyDesc
+                    .fixed()
+                    .setTranslation(
+                        frontLeftWallCenter.x,
+                        frontLeftWallCenter.y,
+                        frontLeftWallCenter.z
+                    )
+            );
+
+        physicsWorld.createCollider(
+            RAPIER.ColliderDesc.cuboid(
+                frontLeftWallSize.x / 2,
+                frontLeftWallSize.y / 2,
+                frontLeftWallSize.z / 2
+            ),
+            frontLeftWallBody
+        );
+
+        const frontRightWallBox =
+            new THREE.Box3().setFromObject(frontRightWallGroup);
+        const frontRightWallCenter =
+            new THREE.Vector3();
+        const frontRightWallSize =
+            new THREE.Vector3();
+
+        frontRightWallBox.getCenter(frontRightWallCenter);
+        frontRightWallBox.getSize(frontRightWallSize);
+
+        const frontRightWallBody =
+            physicsWorld.createRigidBody(
+                RAPIER.RigidBodyDesc
+                    .fixed()
+                    .setTranslation(
+                        frontRightWallCenter.x,
+                        frontRightWallCenter.y,
+                        frontRightWallCenter.z
+                    )
+            );
+
+        physicsWorld.createCollider(
+            RAPIER.ColliderDesc.cuboid(
+                frontRightWallSize.x / 2,
+                frontRightWallSize.y / 2,
+                frontRightWallSize.z / 2
+            ),
+            frontRightWallBody
+        );
+
+        console.log(
+            "Colliders exteriores del Nivel 1 creados correctamente"
+        );
+
+        rebuildFrontFacade();
 
         console.log(
             "Pared del fondo cargada correctamente"
@@ -315,6 +562,285 @@ loader.load(
     }
 );
 
+function rebuildFrontFacade() {
+
+    if (
+        !wallAstraOriginalModel ||
+        !doorFrameModel
+    ) {
+        return;
+    }
+
+    if (frontLeftWallGroupModel) {
+        scene.remove(frontLeftWallGroupModel);
+    }
+
+    if (frontRightWallGroupModel) {
+        scene.remove(frontRightWallGroupModel);
+    }
+
+    frontLeftWallGroupModel = new THREE.Group();
+    frontRightWallGroupModel = new THREE.Group();
+
+    const doorBox =
+        new THREE.Box3().setFromObject(doorFrameModel);
+    const baseWall =
+        wallAstraOriginalModel.clone(true);
+
+    baseWall.rotation.y = -Math.PI / 2;
+
+    const baseWallBox =
+        new THREE.Box3().setFromObject(baseWall);
+    const baseWallSize =
+        new THREE.Vector3();
+
+    baseWallBox.getSize(baseWallSize);
+
+    const segmentWidth = baseWallSize.x;
+    const halfSegmentWidth = segmentWidth / 2;
+    const facadeMinX = -14;
+    const facadeMaxX = 14;
+    const facadeZ = 12;
+    const separation = 0.05;
+    const leftLimit = doorBox.min.x - separation;
+    const rightLimit = doorBox.max.x + separation;
+
+    function addFrontWallSegment(x) {
+
+        const wall =
+            wallAstraOriginalModel.clone(true);
+
+        wall.rotation.y = -Math.PI / 2;
+
+        wall.position.set(
+            x,
+            0,
+            facadeZ
+        );
+
+        if (x < doorBox.min.x) {
+            frontLeftWallGroupModel.add(wall);
+        } else {
+            frontRightWallGroupModel.add(wall);
+        }
+    }
+
+    for (
+        let x = facadeMinX + halfSegmentWidth;
+        x + halfSegmentWidth <= leftLimit;
+        x += segmentWidth
+    ) {
+        addFrontWallSegment(x);
+    }
+
+    for (
+        let x = facadeMaxX - halfSegmentWidth;
+        x - halfSegmentWidth >= rightLimit;
+        x -= segmentWidth
+    ) {
+        addFrontWallSegment(x);
+    }
+
+    scene.add(frontLeftWallGroupModel);
+    scene.add(frontRightWallGroupModel);
+    // Collider actualizado para la pared frontal derecha reconstruida
+frontRightWallGroupModel.updateMatrixWorld(true);
+
+const rebuiltFrontRightBox =
+    new THREE.Box3().setFromObject(frontRightWallGroupModel);
+
+const rebuiltFrontRightCenter =
+    new THREE.Vector3();
+
+const rebuiltFrontRightSize =
+    new THREE.Vector3();
+
+rebuiltFrontRightBox.getCenter(rebuiltFrontRightCenter);
+rebuiltFrontRightBox.getSize(rebuiltFrontRightSize);
+
+const rebuiltFrontRightBody =
+    physicsWorld.createRigidBody(
+        RAPIER.RigidBodyDesc
+            .fixed()
+            .setTranslation(
+                rebuiltFrontRightCenter.x,
+                rebuiltFrontRightCenter.y,
+                rebuiltFrontRightCenter.z
+            )
+    );
+
+physicsWorld.createCollider(
+    RAPIER.ColliderDesc.cuboid(
+        rebuiltFrontRightSize.x / 2,
+        rebuiltFrontRightSize.y / 2,
+        rebuiltFrontRightSize.z / 2
+    ),
+    rebuiltFrontRightBody
+);
+
+    if (frontDoorFillersGroup) {
+        scene.remove(frontDoorFillersGroup);
+    }
+
+    frontDoorFillersGroup = new THREE.Group();
+
+    const updatedLeftBox =
+        new THREE.Box3().setFromObject(frontLeftWallGroupModel);
+    const updatedRightBox =
+        new THREE.Box3().setFromObject(frontRightWallGroupModel);
+    const fillerBase =
+        wallAstraOriginalModel.clone(true);
+
+    fillerBase.rotation.y = -Math.PI / 2;
+    fillerBase.updateMatrixWorld(true);
+
+    const fillerBaseBox =
+        new THREE.Box3().setFromObject(fillerBase);
+    const fillerBaseSize =
+        new THREE.Vector3();
+    const fillerScaledBox =
+        new THREE.Box3();
+    const fillerScaledSize =
+        new THREE.Vector3();
+
+    fillerBaseBox.getSize(fillerBaseSize);
+
+    const xAxisTest =
+        wallAstraOriginalModel.clone(true);
+
+    xAxisTest.rotation.y = -Math.PI / 2;
+    xAxisTest.scale.x = 2;
+    xAxisTest.updateMatrixWorld(true);
+    fillerScaledBox.setFromObject(xAxisTest);
+    fillerScaledBox.getSize(fillerScaledSize);
+
+    const horizontalScaleAxis =
+        Math.abs(
+            fillerScaledSize.x -
+            fillerBaseSize.x
+        ) > 0.01
+            ? "x"
+            : "z";
+
+    function addDoorFiller(minX, maxX) {
+
+        const availableWidth =
+            maxX - minX;
+
+        if (availableWidth <= 0) {
+            return;
+        }
+
+        const filler =
+            wallAstraOriginalModel.clone(true);
+
+        filler.rotation.y = -Math.PI / 2;
+        filler.scale[horizontalScaleAxis] =
+            availableWidth / fillerBaseSize.x;
+
+        filler.position.set(
+            (minX + maxX) / 2,
+            0,
+            facadeZ
+        );
+
+        frontDoorFillersGroup.add(filler);
+    }
+
+    addDoorFiller(
+        updatedLeftBox.max.x,
+        doorBox.min.x - 0.03
+    );
+
+    addDoorFiller(
+        doorBox.max.x + 0.03,
+        updatedRightBox.min.x
+    );
+
+    scene.add(frontDoorFillersGroup);
+    // Collider para los fillers junto al marco de la puerta
+frontDoorFillersGroup.updateMatrixWorld(true);
+
+frontDoorFillersGroup.children.forEach((filler) => {
+
+    const fillerBox =
+        new THREE.Box3().setFromObject(filler);
+
+    const fillerCenter =
+        new THREE.Vector3();
+
+    const fillerSize =
+        new THREE.Vector3();
+
+    fillerBox.getCenter(fillerCenter);
+    fillerBox.getSize(fillerSize);
+
+    const fillerBody =
+        physicsWorld.createRigidBody(
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    fillerCenter.x,
+                    fillerCenter.y,
+                    fillerCenter.z
+                )
+        );
+
+    physicsWorld.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+            fillerSize.x / 2,
+            fillerSize.y / 2,
+            fillerSize.z / 2
+        ),
+        fillerBody
+    );
+});
+
+    createFrontEntranceBarrier();
+}
+
+function createFrontEntranceBarrier() {
+
+    if (
+        frontEntranceBarrierCreated ||
+        !doorFrameModel
+    ) {
+        return;
+    }
+
+    const doorBox =
+        new THREE.Box3().setFromObject(doorFrameModel);
+    const doorSize =
+        new THREE.Vector3();
+    const doorCenter =
+        new THREE.Vector3();
+
+    doorBox.getCenter(doorCenter);
+    doorBox.getSize(doorSize);
+
+    const frontEntranceBarrierBody =
+        physicsWorld.createRigidBody(
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    doorCenter.x,
+                    doorCenter.y,
+                    doorCenter.z
+                )
+        );
+
+    physicsWorld.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+            doorSize.x / 2,
+            doorSize.y / 2,
+            doorSize.z / 2
+        ),
+        frontEntranceBarrierBody
+    );
+
+    frontEntranceBarrierCreated = true;
+}
+
 /* ===============================
    ENTRADA PRINCIPAL - NIVEL 1
 ================================ */
@@ -325,6 +851,7 @@ loader.load(
     function (gltf) {
 
         const doorFrame = gltf.scene;
+        doorFrameModel = doorFrame;
 
         doorFrame.traverse((child) => {
 
@@ -343,6 +870,9 @@ loader.load(
         );
 
         scene.add(doorFrame);
+
+        rebuildFrontFacade();
+        createFrontEntranceBarrier();
 
         console.log(
             "Marco de puerta cargado correctamente"
@@ -433,6 +963,44 @@ fbxLoader.load(
         );
 
         scene.add(xbot);
+
+        if (physicsWorld) {
+
+            const playerBodyDesc =
+                RAPIER.RigidBodyDesc
+                    .kinematicPositionBased()
+                    .setTranslation(
+                        xbot.position.x,
+                        xbot.position.y,
+                        xbot.position.z
+                    );
+
+            playerBody =
+                physicsWorld.createRigidBody(
+                    playerBodyDesc
+                );
+
+            const playerColliderDesc =
+                RAPIER.ColliderDesc.capsule(
+                    0.7,
+                    0.45
+                );
+
+            playerCollider =
+                physicsWorld.createCollider(
+                    playerColliderDesc,
+                    playerBody
+                );
+
+            characterController =
+                physicsWorld.createCharacterController(
+                    0.01
+                );
+
+            console.log(
+                "Collider de R-0 creado correctamente"
+            );
+        }
 
         r0Mixer = new THREE.AnimationMixer(xbot);
 
@@ -831,7 +1399,12 @@ function animate() {
 
         if (isR0Attacking) {
             r0MoveDirection.set(0, 0, 0);
-        } else if (r0MoveDirection.lengthSq() > 0) {
+        } else if (
+            r0MoveDirection.lengthSq() > 0 &&
+            playerBody &&
+            playerCollider &&
+            characterController
+        ) {
 
             r0MoveDirection.normalize();
 
@@ -840,15 +1413,38 @@ function animate() {
                     ? r0RunSpeed
                     : r0WalkSpeed;
 
-            r0.position.x +=
-                r0MoveDirection.x *
-                speed *
-                delta;
+            const playerPosition =
+                playerBody.translation();
 
-            r0.position.z +=
-                r0MoveDirection.z *
-                speed *
-                delta;
+            const desiredMovement = {
+                x:
+                    r0MoveDirection.x *
+                    speed *
+                    delta,
+                y: 0,
+                z:
+                    r0MoveDirection.z *
+                    speed *
+                    delta
+            };
+
+            characterController.computeColliderMovement(
+                playerCollider,
+                desiredMovement
+            );
+
+            const correctedMovement =
+                characterController.computedMovement();
+
+            playerBody.setNextKinematicTranslation({
+                x:
+                    playerPosition.x +
+                    correctedMovement.x,
+                y: playerPosition.y,
+                z:
+                    playerPosition.z +
+                    correctedMovement.z
+            });
 
             r0.rotation.y =
                 Math.atan2(
@@ -867,6 +1463,22 @@ function animate() {
             playR0Action("idle");
 
         }
+    }
+
+    if (physicsWorld) {
+        physicsWorld.step();
+    }
+
+    if (r0 && playerBody) {
+
+        const playerPosition =
+            playerBody.translation();
+
+        r0.position.set(
+            playerPosition.x,
+            playerPosition.y,
+            playerPosition.z
+        );
 
         cameraFollowPosition
             .copy(r0.position)
