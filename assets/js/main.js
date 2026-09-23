@@ -1541,6 +1541,7 @@ loader.load(
 ================================ */
 
 const dynamicCrates = [];
+const usedCratePositions = [];
 
 loader.load(
     "./assets/models/props/crates/Prop_Crate4.gltf",
@@ -1561,7 +1562,7 @@ loader.load(
         // ===============================
 
         const numberOfRandomCrates = 15;
-        const usedCratePositions = [];
+
 
         for (
             let i = 0;
@@ -1696,6 +1697,8 @@ loader.load(
 );
 
 
+
+
 /* ===============================
    CREAR CAJA DINÁMICA
 ================================ */
@@ -1770,7 +1773,254 @@ function createDynamicCrate(
         body: body
     });
 }
+/* ===============================
+   BARRILES DINÁMICOS DEL NIVEL 1
+================================ */
 
+const dynamicBarrels = [];
+
+loader.load(
+    "./assets/models/props/barrels/Prop_Barrel_Large.gltf",
+
+    function (gltf) {
+
+        const barrelOriginal = gltf.scene;
+
+        barrelOriginal.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        // ===============================
+        // GENERAR BARRILES ALEATORIOS
+        // ===============================
+
+        const usedBarrelPositions = [];
+        const numberOfBarrels = 6;
+
+        for (let i = 0; i < numberOfBarrels; i++) {
+
+            let x;
+            let z;
+            let invalidPosition;
+
+            do {
+
+                x = THREE.MathUtils.randFloat(
+                    -11,
+                    11
+                );
+
+                z = THREE.MathUtils.randFloat(
+                    -7,
+                    7
+                );
+
+                // Evitar zona inicial de R-0
+                const nearPlayerStart =
+                    Math.abs(x) < 3 &&
+                    Math.abs(z) < 3;
+
+                // Evitar generadores
+                const nearGenerator =
+                    generatorPositions.some(
+                        (generator) => {
+
+                            const dx =
+                                x - generator.x;
+
+                            const dz =
+                                z - generator.z;
+
+                            const distance =
+                                Math.sqrt(
+                                    dx * dx +
+                                    dz * dz
+                                );
+
+                            return distance < 2.5;
+                        }
+                    );
+
+                // Evitar otros barriles
+                const nearAnotherBarrel =
+                    usedBarrelPositions.some(
+                        (position) => {
+
+                            const dx =
+                                x - position.x;
+
+                            const dz =
+                                z - position.z;
+
+                            const distance =
+                                Math.sqrt(
+                                    dx * dx +
+                                    dz * dz
+                                );
+
+                            return distance < 2.5;
+                        }
+                    );
+                // Evitar cajas
+                const nearCrate =
+                    usedCratePositions.some(
+                        (position) => {
+
+                            const dx =
+                                x - position.x;
+
+                            const dz =
+                                z - position.z;
+
+                            const distance =
+                                Math.sqrt(
+                                    dx * dx +
+                                    dz * dz
+                                );
+
+                            return distance < 2.5;
+                        }
+                    );
+
+                invalidPosition =
+                    nearPlayerStart ||
+                    nearGenerator ||
+                    nearAnotherBarrel ||
+                    nearCrate;
+
+            } while (invalidPosition);
+
+            usedBarrelPositions.push({
+                x: x,
+                z: z
+            });
+
+            createDynamicBarrel(
+                barrelOriginal,
+                x,
+                0.15,
+                z
+            );
+        }
+
+        console.log(
+            "Barriles dinámicos cargados correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+
+        console.error(
+            "Error cargando Prop_Barrel_Large:",
+            error
+        );
+    }
+);
+
+
+/* ===============================
+   CREAR BARRIL DINÁMICO
+================================ */
+
+function createDynamicBarrel(
+    barrelOriginal,
+    x,
+    y,
+    z
+) {
+
+    const barrel =
+        barrelOriginal.clone(true);
+
+    barrel.scale.set(
+        1.5,
+        1.5,
+        1.5
+    );
+
+    barrel.position.set(
+        x,
+        y,
+        z
+    );
+
+    scene.add(barrel);
+
+    barrel.updateMatrixWorld(true);
+
+    const barrelBox =
+        new THREE.Box3().setFromObject(barrel);
+
+    const barrelSize =
+        new THREE.Vector3();
+
+    const barrelCenter =
+        new THREE.Vector3();
+
+    barrelBox.getSize(barrelSize);
+    barrelBox.getCenter(barrelCenter);
+
+    // Offset individual del modelo
+    const modelOffset =
+        new THREE.Vector3();
+
+    modelOffset.copy(
+        barrel.position
+    ).sub(
+        barrelCenter
+    );
+
+    // Cuerpo dinámico
+    const bodyDesc =
+        RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(
+                barrelCenter.x,
+                barrelCenter.y,
+                barrelCenter.z
+            );
+
+    const body =
+        physicsWorld.createRigidBody(
+            bodyDesc
+        );
+
+    // Collider cilíndrico
+    const barrelRadius =
+        Math.max(
+            barrelSize.x,
+            barrelSize.z
+        ) / 2;
+
+    const barrelHalfHeight =
+        barrelSize.y / 2;
+
+    const colliderDesc =
+        RAPIER.ColliderDesc.cylinder(
+            barrelHalfHeight,
+            barrelRadius
+        );
+
+    colliderDesc.setDensity(10);
+    colliderDesc.setFriction(0.7);
+    colliderDesc.setRestitution(0.15);
+
+    physicsWorld.createCollider(
+        colliderDesc,
+        body
+    );
+
+    dynamicBarrels.push({
+        model: barrel,
+        body: body,
+        offset: modelOffset
+    });
+}
 /* ===============================
    PERSONAJE R-0 - PRUEBA
 ================================ */
@@ -2428,6 +2678,39 @@ function animate() {
             rotation.y,
             rotation.z,
             rotation.w
+        );
+    });
+    // ===============================
+    // SINCRONIZAR BARRIL CON RAPIER
+    // ===============================
+
+
+    dynamicBarrels.forEach((barrel) => {
+
+        const position =
+            barrel.body.translation();
+
+        const rotation =
+            barrel.body.rotation();
+
+        barrel.model.quaternion.set(
+            rotation.x,
+            rotation.y,
+            rotation.z,
+            rotation.w
+        );
+
+        const rotatedOffset =
+            barrel.offset
+                .clone()
+                .applyQuaternion(
+                    barrel.model.quaternion
+                );
+
+        barrel.model.position.set(
+            position.x + rotatedOffset.x,
+            position.y + rotatedOffset.y,
+            position.z + rotatedOffset.z
         );
     });
 
