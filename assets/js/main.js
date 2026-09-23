@@ -28,6 +28,12 @@ let isR0Attacking = false;
 const generators = [];
 let activatedGenerators = 0;
 let levelCompleted = false;
+// Posiciones de los 3 generadores del Nivel 1
+const generatorPositions = [
+    { x: -8, y: 0.70, z: -5 },
+    { x: 8, y: 0.73, z: -5 },
+    { x: 0, y: 0.73, z: 5 }
+];
 const r0Actions = {};
 const r0Keys = {
     w: false,
@@ -1443,12 +1449,7 @@ loader.load(
 
         });
 
-        // Posiciones de los 3 generadores del Nivel 1
-        const generatorPositions = [
-            { x: -8, y: 0.70, z: -5 },
-            { x: 8, y: 0.73, z: -5 },
-            { x: 0, y: 0.73, z: 5 }
-        ];
+
 
         generatorPositions.forEach((position, index) => {
 
@@ -1536,6 +1537,241 @@ loader.load(
 );
 
 /* ===============================
+   CAJAS DINÁMICAS DEL NIVEL 1
+================================ */
+
+const dynamicCrates = [];
+
+loader.load(
+    "./assets/models/props/crates/Prop_Crate4.gltf",
+
+    function (gltf) {
+
+        const crateOriginal = gltf.scene;
+
+        crateOriginal.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        // ===============================
+        // CAJAS DISTRIBUIDAS ALEATORIAMENTE
+        // ===============================
+
+        const numberOfRandomCrates = 15;
+        const usedCratePositions = [];
+
+        for (
+            let i = 0;
+            i < numberOfRandomCrates;
+            i++
+        ) {
+
+            let x;
+            let z;
+
+            // Evitamos la zona central donde inicia R-0
+            let invalidPosition;
+
+            do {
+
+                x = THREE.MathUtils.randFloat(
+                    -11,
+                    11
+                );
+
+                z = THREE.MathUtils.randFloat(
+                    -7,
+                    7
+                );
+
+                // Evitar zona donde inicia R-0
+                const nearPlayerStart =
+                    Math.abs(x) < 3 &&
+                    Math.abs(z) < 3;
+
+                // Evitar los generadores
+                const nearGenerator =
+                    generatorPositions.some(
+                        (generator) => {
+
+                            const dx =
+                                x - generator.x;
+
+                            const dz =
+                                z - generator.z;
+
+                            const distance =
+                                Math.sqrt(
+                                    dx * dx +
+                                    dz * dz
+                                );
+
+                            return distance < 2.5;
+                        }
+                    );
+                // Evitar cajas demasiado juntas
+                const nearAnotherCrate =
+                    usedCratePositions.some(
+                        (cratePosition) => {
+
+                            const dx =
+                                x - cratePosition.x;
+
+                            const dz =
+                                z - cratePosition.z;
+
+                            const distance =
+                                Math.sqrt(
+                                    dx * dx +
+                                    dz * dz
+                                );
+
+                            return distance < 2.2;
+                        }
+                    );
+
+                invalidPosition =
+                    nearPlayerStart ||
+                    nearGenerator ||
+                    nearAnotherCrate;
+
+            } while (invalidPosition);
+
+            usedCratePositions.push({
+                x: x,
+                z: z
+            });
+
+            createDynamicCrate(
+                crateOriginal,
+                x,
+                1.2,
+                z
+            );
+        }
+
+
+        // ===============================
+        // PILA DE CAJAS
+        // ===============================
+
+        createDynamicCrate(
+            crateOriginal,
+            -10,
+            1.2,
+            5
+        );
+
+        createDynamicCrate(
+            crateOriginal,
+            -10,
+            3.2,
+            5
+        );
+
+        createDynamicCrate(
+            crateOriginal,
+            -10,
+            5.2,
+            5
+        );
+
+        console.log(
+            "Cajas dinámicas cargadas correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+
+        console.error(
+            "Error cargando Prop_Crate4:",
+            error
+        );
+    }
+);
+
+
+/* ===============================
+   CREAR CAJA DINÁMICA
+================================ */
+
+function createDynamicCrate(
+    crateOriginal,
+    x,
+    y,
+    z
+) {
+
+    const crate =
+        crateOriginal.clone(true);
+
+    crate.position.set(
+        x,
+        y,
+        z
+    );
+
+    scene.add(crate);
+
+    crate.updateMatrixWorld(true);
+
+    const crateBox =
+        new THREE.Box3().setFromObject(crate);
+
+    const crateSize =
+        new THREE.Vector3();
+
+    const crateCenter =
+        new THREE.Vector3();
+
+    crateBox.getSize(crateSize);
+    crateBox.getCenter(crateCenter);
+
+    // Cuerpo dinámico
+    const bodyDesc =
+        RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(
+                crateCenter.x,
+                crateCenter.y,
+                crateCenter.z
+            );
+
+    const body =
+        physicsWorld.createRigidBody(
+            bodyDesc
+        );
+
+    // Collider
+    const colliderDesc =
+        RAPIER.ColliderDesc.cuboid(
+            crateSize.x / 2,
+            crateSize.y / 2,
+            crateSize.z / 2
+        );
+
+    colliderDesc.setDensity(15);
+    colliderDesc.setFriction(0.8);
+    colliderDesc.setRestitution(0.1);
+
+    physicsWorld.createCollider(
+        colliderDesc,
+        body
+    );
+
+    // Guardamos juntos modelo + cuerpo físico
+    dynamicCrates.push({
+        model: crate,
+        body: body
+    });
+}
+
+/* ===============================
    PERSONAJE R-0 - PRUEBA
 ================================ */
 
@@ -1595,6 +1831,7 @@ fbxLoader.load(
                 physicsWorld.createCharacterController(
                     0.01
                 );
+            characterController.setApplyImpulsesToDynamicBodies(true);
 
             console.log(
                 "Collider de R-0 creado correctamente"
@@ -1909,32 +2146,32 @@ window.addEventListener(
                     generatorBox.getCenter(generatorCenter);
 
                     const indicatorGeometry =
-    new THREE.BoxGeometry(
-        0.22,
-        0.06,
-        0.03
-    );
+                        new THREE.BoxGeometry(
+                            0.22,
+                            0.06,
+                            0.03
+                        );
 
-const indicatorMaterial =
-    new THREE.MeshBasicMaterial({
-        color: 0x00ff88,
-        toneMapped: false
-    });
-    indicatorMaterial.color.multiplyScalar(2);
+                    const indicatorMaterial =
+                        new THREE.MeshBasicMaterial({
+                            color: 0x00ff88,
+                            toneMapped: false
+                        });
+                    indicatorMaterial.color.multiplyScalar(2);
 
-const indicatorLight =
-    new THREE.Mesh(
-        indicatorGeometry,
-        indicatorMaterial
-    );
+                    const indicatorLight =
+                        new THREE.Mesh(
+                            indicatorGeometry,
+                            indicatorMaterial
+                        );
 
-indicatorLight.position.set(
-    0,
-    1.2,
-    0.6
-);
+                    indicatorLight.position.set(
+                        0,
+                        1.2,
+                        0.6
+                    );
 
-generator.add(indicatorLight);
+                    generator.add(indicatorLight);
 
                     activatedGenerators++;
 
@@ -2168,6 +2405,31 @@ function animate() {
     if (physicsWorld) {
         physicsWorld.step();
     }
+    // ===============================
+    // SINCRONIZAR CAJAS CON RAPIER
+    // ===============================
+
+    dynamicCrates.forEach((crate) => {
+
+        const position =
+            crate.body.translation();
+
+        const rotation =
+            crate.body.rotation();
+
+        crate.model.position.set(
+            position.x,
+            position.y,
+            position.z
+        );
+
+        crate.model.quaternion.set(
+            rotation.x,
+            rotation.y,
+            rotation.z,
+            rotation.w
+        );
+    });
 
     if (r0 && playerBody) {
 
