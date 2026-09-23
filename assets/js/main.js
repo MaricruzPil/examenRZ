@@ -167,7 +167,7 @@ const industrialBackgroundTexture =
 industrialBackgroundTexture.colorSpace =
     THREE.SRGBColorSpace;
 
-    
+
 
 /* ===============================
    CÁMARA
@@ -578,33 +578,33 @@ function createIndustrialTower(x, z, height) {
     industrialBackground.add(
         towerGroup
     );
-   // Halo industrial ambiental
-const glowGeometry =
-    new THREE.SphereGeometry(
-        8,
-        16,
-        16
-    );
+    // Halo industrial ambiental
+    const glowGeometry =
+        new THREE.SphereGeometry(
+            8,
+            16,
+            16
+        );
 
-const glowMaterial =
-    new THREE.ShaderMaterial({
+    const glowMaterial =
+        new THREE.ShaderMaterial({
 
-        transparent: true,
-        depthWrite: false,
+            transparent: true,
+            depthWrite: false,
 
-        blending:
-            THREE.AdditiveBlending,
+            blending:
+                THREE.AdditiveBlending,
 
-        uniforms: {
-            glowColor: {
-                value:
-                    new THREE.Color(
-                        0xff4d2e
-                    )
-            }
-        },
+            uniforms: {
+                glowColor: {
+                    value:
+                        new THREE.Color(
+                            0xff4d2e
+                        )
+                }
+            },
 
-        vertexShader: `
+            vertexShader: `
             varying vec3 vNormal;
 
             void main() {
@@ -621,7 +621,7 @@ const glowMaterial =
             }
         `,
 
-        fragmentShader: `
+            fragmentShader: `
             varying vec3 vNormal;
 
             uniform vec3 glowColor;
@@ -642,24 +642,24 @@ const glowMaterial =
                     );
             }
         `
-    });
-    
+        });
 
-const industrialGlow =
-    new THREE.Mesh(
-        glowGeometry,
-        glowMaterial
+
+    const industrialGlow =
+        new THREE.Mesh(
+            glowGeometry,
+            glowMaterial
+        );
+
+    industrialGlow.position.set(
+        0,
+        height * 0.45,
+        0
     );
 
-industrialGlow.position.set(
-    0,
-    height * 0.45,
-    0
-);
-
-towerGroup.add(
-    industrialGlow
-);
+    towerGroup.add(
+        industrialGlow
+    );
 }
 function createIndustrialBridge(
     x,
@@ -1474,6 +1474,48 @@ loader.load(
             generators.push(generator);
 
             scene.add(generator);
+            // ===============================
+            // COLLIDER DEL GENERADOR
+            // ===============================
+
+            generator.updateMatrixWorld(true);
+
+            const generatorBox =
+                new THREE.Box3().setFromObject(generator);
+
+            const generatorCenter =
+                new THREE.Vector3();
+
+            const generatorSize =
+                new THREE.Vector3();
+
+            generatorBox.getCenter(
+                generatorCenter
+            );
+
+            generatorBox.getSize(
+                generatorSize
+            );
+
+            const generatorBody =
+                physicsWorld.createRigidBody(
+                    RAPIER.RigidBodyDesc
+                        .fixed()
+                        .setTranslation(
+                            generatorCenter.x,
+                            generatorCenter.y,
+                            generatorCenter.z
+                        )
+                );
+
+            physicsWorld.createCollider(
+                RAPIER.ColliderDesc.cuboid(
+                    generatorSize.x / 2,
+                    generatorSize.y / 2,
+                    generatorSize.z / 2
+                ),
+                generatorBody
+            );
         });
 
         console.log(
@@ -1854,22 +1896,7 @@ window.addEventListener(
 
                     generator.userData.activated = true;
 
-                    // Indicador neón de generador activado
-                    const neonGeometry = new THREE.SphereGeometry(
-                        0.22,
-                        0.05,
-                        0.02
-                    );
-
-                    const neonMaterial = new THREE.MeshBasicMaterial({
-                        color: 0x00ff88
-                    });
-
-                    const neonIndicator = new THREE.Mesh(
-                        neonGeometry,
-                        neonMaterial
-                    );
-                    neonIndicator.rotation.z = -Math.PI / 4;
+                    // Indicador luminoso de generador activado
 
                     generator.updateMatrixWorld(true);
 
@@ -1881,13 +1908,33 @@ window.addEventListener(
 
                     generatorBox.getCenter(generatorCenter);
 
-                    neonIndicator.position.set(
-                        generatorCenter.x,
-                        generatorCenter.y + 0.25,
-                        generatorBox.max.z + 0.03
-                    );
+                    const indicatorGeometry =
+    new THREE.BoxGeometry(
+        0.22,
+        0.06,
+        0.03
+    );
 
-                    scene.add(neonIndicator);
+const indicatorMaterial =
+    new THREE.MeshBasicMaterial({
+        color: 0x00ff88,
+        toneMapped: false
+    });
+    indicatorMaterial.color.multiplyScalar(2);
+
+const indicatorLight =
+    new THREE.Mesh(
+        indicatorGeometry,
+        indicatorMaterial
+    );
+
+indicatorLight.position.set(
+    0,
+    1.2,
+    0.6
+);
+
+generator.add(indicatorLight);
 
                     activatedGenerators++;
 
