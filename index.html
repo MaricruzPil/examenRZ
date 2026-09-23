@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Reactor Zero</title>
+
+    <!-- Bootstrap -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+    <!-- Estilos -->
+    <link rel="stylesheet" href="./assets/css/styles.css">
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+
+<body>
+
+    <!-- Contenedor del videojuego -->
+    <div id="game-container"></div>
+
+    <!-- Pantalla inicial -->
+    <div id="start-screen">
+        <div class="game-panel">
+
+            <h1>REACTOR ZERO</h1>
+
+            <p class="subtitle">
+                PROTOCOLO DE EMERGENCIA
+            </p>
+
+            <hr>
+
+            <p>
+                Una falla crítica amenaza con destruir
+                la instalación.
+            </p>
+
+            <p>
+                Tu misión es recuperar el control
+                antes de que Reactor Zero colapse.
+            </p>
+
+            <div class="controls">
+                <p><strong>WASD</strong> Movimiento</p>
+                <p><strong>SHIFT</strong> Correr</p>
+                <p><strong>F</strong> Pulso de energía</p>
+                <p><strong>E</strong> Interactuar</p>
+                <p><strong>MOUSE</strong> Cámara</p>
+            </div>
+
+            <button
+                id="start-button"
+                class="btn btn-warning btn-lg"
+            >
+                INICIAR MISIÓN
+            </button>
+
+        </div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+
+        <div>
+            <strong>REACTOR ZERO</strong>
+        </div>
+
+        <div>
+            NIVEL:
+            <span id="level">1</span>
+        </div>
+
+        <div>
+            OBJETIVOS:
+            <span id="objectives">0 / 3</span>
+        </div>
+
+        <div>
+            ENERGÍA:
+            <span id="energy">100</span>%
+        </div>
+
+        <div>
+            PUNTOS:
+            <span id="score">0</span>
+        </div>
+
+    </div>
+
+    <script
+        type="module"
+        src="./assets/js/main.js"
+    ></script>
+
+</body>
+</html>
