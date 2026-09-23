@@ -27,6 +27,7 @@ let currentR0Action = null;
 let isR0Attacking = false;
 const generators = [];
 let activatedGenerators = 0;
+let levelCompleted = false;
 const r0Actions = {};
 const r0Keys = {
     w: false,
@@ -443,23 +444,23 @@ loader.load(
 
 
         console.log("DIAGNÓSTICO PARED DERECHA", {
-    center: {
-        x: rightWallCenter.x,
-        y: rightWallCenter.y,
-        z: rightWallCenter.z
-    },
-    size: {
-        x: rightWallSize.x,
-        y: rightWallSize.y,
-        z: rightWallSize.z
-    },
-    box: {
-        minX: rightWallBox.min.x,
-        maxX: rightWallBox.max.x,
-        minZ: rightWallBox.min.z,
-        maxZ: rightWallBox.max.z
-    }
-});
+            center: {
+                x: rightWallCenter.x,
+                y: rightWallCenter.y,
+                z: rightWallCenter.z
+            },
+            size: {
+                x: rightWallSize.x,
+                y: rightWallSize.y,
+                z: rightWallSize.z
+            },
+            box: {
+                minX: rightWallBox.min.x,
+                maxX: rightWallBox.max.x,
+                minZ: rightWallBox.min.z,
+                maxZ: rightWallBox.max.z
+            }
+        });
 
         const rightWallBody =
             physicsWorld.createRigidBody(
@@ -646,39 +647,39 @@ function rebuildFrontFacade() {
     scene.add(frontLeftWallGroupModel);
     scene.add(frontRightWallGroupModel);
     // Collider actualizado para la pared frontal derecha reconstruida
-frontRightWallGroupModel.updateMatrixWorld(true);
+    frontRightWallGroupModel.updateMatrixWorld(true);
 
-const rebuiltFrontRightBox =
-    new THREE.Box3().setFromObject(frontRightWallGroupModel);
+    const rebuiltFrontRightBox =
+        new THREE.Box3().setFromObject(frontRightWallGroupModel);
 
-const rebuiltFrontRightCenter =
-    new THREE.Vector3();
+    const rebuiltFrontRightCenter =
+        new THREE.Vector3();
 
-const rebuiltFrontRightSize =
-    new THREE.Vector3();
+    const rebuiltFrontRightSize =
+        new THREE.Vector3();
 
-rebuiltFrontRightBox.getCenter(rebuiltFrontRightCenter);
-rebuiltFrontRightBox.getSize(rebuiltFrontRightSize);
+    rebuiltFrontRightBox.getCenter(rebuiltFrontRightCenter);
+    rebuiltFrontRightBox.getSize(rebuiltFrontRightSize);
 
-const rebuiltFrontRightBody =
-    physicsWorld.createRigidBody(
-        RAPIER.RigidBodyDesc
-            .fixed()
-            .setTranslation(
-                rebuiltFrontRightCenter.x,
-                rebuiltFrontRightCenter.y,
-                rebuiltFrontRightCenter.z
-            )
+    const rebuiltFrontRightBody =
+        physicsWorld.createRigidBody(
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    rebuiltFrontRightCenter.x,
+                    rebuiltFrontRightCenter.y,
+                    rebuiltFrontRightCenter.z
+                )
+        );
+
+    physicsWorld.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+            rebuiltFrontRightSize.x / 2,
+            rebuiltFrontRightSize.y / 2,
+            rebuiltFrontRightSize.z / 2
+        ),
+        rebuiltFrontRightBody
     );
-
-physicsWorld.createCollider(
-    RAPIER.ColliderDesc.cuboid(
-        rebuiltFrontRightSize.x / 2,
-        rebuiltFrontRightSize.y / 2,
-        rebuiltFrontRightSize.z / 2
-    ),
-    rebuiltFrontRightBody
-);
 
     if (frontDoorFillersGroup) {
         scene.remove(frontDoorFillersGroup);
@@ -761,42 +762,42 @@ physicsWorld.createCollider(
 
     scene.add(frontDoorFillersGroup);
     // Collider para los fillers junto al marco de la puerta
-frontDoorFillersGroup.updateMatrixWorld(true);
+    frontDoorFillersGroup.updateMatrixWorld(true);
 
-frontDoorFillersGroup.children.forEach((filler) => {
+    frontDoorFillersGroup.children.forEach((filler) => {
 
-    const fillerBox =
-        new THREE.Box3().setFromObject(filler);
+        const fillerBox =
+            new THREE.Box3().setFromObject(filler);
 
-    const fillerCenter =
-        new THREE.Vector3();
+        const fillerCenter =
+            new THREE.Vector3();
 
-    const fillerSize =
-        new THREE.Vector3();
+        const fillerSize =
+            new THREE.Vector3();
 
-    fillerBox.getCenter(fillerCenter);
-    fillerBox.getSize(fillerSize);
+        fillerBox.getCenter(fillerCenter);
+        fillerBox.getSize(fillerSize);
 
-    const fillerBody =
-        physicsWorld.createRigidBody(
-            RAPIER.RigidBodyDesc
-                .fixed()
-                .setTranslation(
-                    fillerCenter.x,
-                    fillerCenter.y,
-                    fillerCenter.z
-                )
+        const fillerBody =
+            physicsWorld.createRigidBody(
+                RAPIER.RigidBodyDesc
+                    .fixed()
+                    .setTranslation(
+                        fillerCenter.x,
+                        fillerCenter.y,
+                        fillerCenter.z
+                    )
+            );
+
+        physicsWorld.createCollider(
+            RAPIER.ColliderDesc.cuboid(
+                fillerSize.x / 2,
+                fillerSize.y / 2,
+                fillerSize.z / 2
+            ),
+            fillerBody
         );
-
-    physicsWorld.createCollider(
-        RAPIER.ColliderDesc.cuboid(
-            fillerSize.x / 2,
-            fillerSize.y / 2,
-            fillerSize.z / 2
-        ),
-        fillerBody
-    );
-});
+    });
 
     createFrontEntranceBarrier();
 }
@@ -959,8 +960,8 @@ loader.load(
         // Posiciones de los 3 generadores del Nivel 1
         const generatorPositions = [
             { x: -8, y: 0.70, z: -5 },
-            { x:  8, y: 0.73, z: -5 },
-            { x:  0, y: 0.73, z:  5 }
+            { x: 8, y: 0.73, z: -5 },
+            { x: 0, y: 0.73, z: 5 }
         ];
 
         generatorPositions.forEach((position, index) => {
@@ -968,11 +969,11 @@ loader.load(
             const generator = generatorOriginal.clone(true);
             generator.traverse((child) => {
 
-    if (child.isMesh && child.material) {
-        child.material = child.material.clone();
-    }
+                if (child.isMesh && child.material) {
+                    child.material = child.material.clone();
+                }
 
-});
+            });
 
             generator.rotation.x = -Math.PI / 2;
 
@@ -1320,7 +1321,19 @@ startButton.addEventListener(
 
     }
 );
+const nextLevelButton =
+    document.getElementById("next-level-button");
 
+nextLevelButton.addEventListener(
+    "click",
+    () => {
+
+        console.log(
+            "Preparando Nivel 2 - Laboratorio"
+        );
+
+    }
+);
 
 window.addEventListener(
     "keydown",
@@ -1328,7 +1341,9 @@ window.addEventListener(
 
         const key = event.key.toLowerCase();
 
-        if (key === "f" && !r0Keys.f) {
+        if (key === "f" &&
+    !r0Keys.f &&
+    !levelCompleted) {
             playR0Attack();
             r0Keys.f = true;
         }
@@ -1336,67 +1351,78 @@ window.addEventListener(
 
         if (key === "e" && r0) {
 
-    generators.forEach((generator) => {
+            generators.forEach((generator) => {
 
-        const distance =
-            r0.position.distanceTo(generator.position);
+                const distance =
+                    r0.position.distanceTo(generator.position);
 
-        if (
-            distance < 2 &&
-            !generator.userData.activated
-        ) {
+                if (
+                    distance < 2 &&
+                    !generator.userData.activated
+                ) {
 
-            generator.userData.activated = true;
+                    generator.userData.activated = true;
 
-            // Indicador neón de generador activado
-const neonGeometry = new THREE.SphereGeometry(
-    0.22,
-    0.05,
-    0.02
-);
+                    // Indicador neón de generador activado
+                    const neonGeometry = new THREE.SphereGeometry(
+                        0.22,
+                        0.05,
+                        0.02
+                    );
 
-const neonMaterial = new THREE.MeshBasicMaterial({
-    color: 0x00ff88
-});
+                    const neonMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x00ff88
+                    });
 
-const neonIndicator = new THREE.Mesh(
-    neonGeometry,
-    neonMaterial
-);
-neonIndicator.rotation.z = -Math.PI / 4;
+                    const neonIndicator = new THREE.Mesh(
+                        neonGeometry,
+                        neonMaterial
+                    );
+                    neonIndicator.rotation.z = -Math.PI / 4;
 
-generator.updateMatrixWorld(true);
+                    generator.updateMatrixWorld(true);
 
-const generatorBox =
-    new THREE.Box3().setFromObject(generator);
+                    const generatorBox =
+                        new THREE.Box3().setFromObject(generator);
 
-const generatorCenter =
-    new THREE.Vector3();
+                    const generatorCenter =
+                        new THREE.Vector3();
 
-generatorBox.getCenter(generatorCenter);
+                    generatorBox.getCenter(generatorCenter);
 
-neonIndicator.position.set(
-    generatorCenter.x,
-    generatorCenter.y + 0.25,
-    generatorBox.max.z + 0.03
-);
+                    neonIndicator.position.set(
+                        generatorCenter.x,
+                        generatorCenter.y + 0.25,
+                        generatorBox.max.z + 0.03
+                    );
 
-scene.add(neonIndicator);
+                    scene.add(neonIndicator);
 
-            activatedGenerators++;
+                    activatedGenerators++;
 
-document.getElementById("objectives").textContent =
-    `${activatedGenerators} / 3`;
+                    document.getElementById("objectives").textContent =
+                        `${activatedGenerators} / 3`;
+                    if (activatedGenerators === 3) {
+                        levelCompleted = true;
 
-            console.log(
-                `${generator.name} ACTIVADO`
-            );
+                        console.log(
+                            "NIVEL 1 COMPLETADO - ENERGÍA RESTAURADA"
+                        );
+                        document
+                            .getElementById("level-complete")
+                            .classList.remove("hidden");
+
+                    }
+
+                    console.log(
+                        `${generator.name} ACTIVADO`
+                    );
+
+                }
+
+            });
 
         }
-
-    });
-
-}
 
 
         if (key in r0Keys) {
@@ -1513,7 +1539,7 @@ function animate() {
         r0Mixer.update(delta);
     }
 
-    if (r0) {
+    if (r0 && !levelCompleted) {
 
         r0MoveDirection.set(0, 0, 0);
 
@@ -1615,7 +1641,7 @@ function animate() {
             playerPosition.y,
             playerPosition.z
         );
-        
+
 
 
         cameraFollowPosition
