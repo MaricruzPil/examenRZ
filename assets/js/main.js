@@ -25,6 +25,8 @@ let frontDoorFillersGroup = null;
 let frontEntranceBarrierCreated = false;
 let currentR0Action = null;
 let isR0Attacking = false;
+const generators = [];
+let activatedGenerators = 0;
 const r0Actions = {};
 const r0Keys = {
     w: false,
@@ -934,7 +936,75 @@ loader.load(
 
     }
 );
+/* ===============================
+   GENERADORES - NIVEL 1
+================================ */
 
+loader.load(
+    "./assets/models/props/generators/Prop_AccessPoint.gltf",
+
+    function (gltf) {
+
+        const generatorOriginal = gltf.scene;
+
+        generatorOriginal.traverse((child) => {
+
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+
+        });
+
+        // Posiciones de los 3 generadores del Nivel 1
+        const generatorPositions = [
+            { x: -8, y: 0.70, z: -5 },
+            { x:  8, y: 0.73, z: -5 },
+            { x:  0, y: 0.73, z:  5 }
+        ];
+
+        generatorPositions.forEach((position, index) => {
+
+            const generator = generatorOriginal.clone(true);
+            generator.traverse((child) => {
+
+    if (child.isMesh && child.material) {
+        child.material = child.material.clone();
+    }
+
+});
+
+            generator.rotation.x = -Math.PI / 2;
+
+            generator.position.set(
+                position.x,
+                position.y,
+                position.z
+            );
+
+            generator.name = `Generator_${index + 1}`;
+            generator.userData.activated = false;
+            generators.push(generator);
+
+            scene.add(generator);
+        });
+
+        console.log(
+            "3 generadores del Nivel 1 cargados correctamente"
+        );
+    },
+
+    undefined,
+
+    function (error) {
+
+        console.error(
+            "Error cargando generadores del Nivel 1:",
+            error
+        );
+
+    }
+);
 
 /* ===============================
    PERSONAJE R-0 - PRUEBA
@@ -1263,6 +1333,72 @@ window.addEventListener(
             r0Keys.f = true;
         }
 
+
+        if (key === "e" && r0) {
+
+    generators.forEach((generator) => {
+
+        const distance =
+            r0.position.distanceTo(generator.position);
+
+        if (
+            distance < 2 &&
+            !generator.userData.activated
+        ) {
+
+            generator.userData.activated = true;
+
+            // Indicador neón de generador activado
+const neonGeometry = new THREE.SphereGeometry(
+    0.22,
+    0.05,
+    0.02
+);
+
+const neonMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00ff88
+});
+
+const neonIndicator = new THREE.Mesh(
+    neonGeometry,
+    neonMaterial
+);
+neonIndicator.rotation.z = -Math.PI / 4;
+
+generator.updateMatrixWorld(true);
+
+const generatorBox =
+    new THREE.Box3().setFromObject(generator);
+
+const generatorCenter =
+    new THREE.Vector3();
+
+generatorBox.getCenter(generatorCenter);
+
+neonIndicator.position.set(
+    generatorCenter.x,
+    generatorCenter.y + 0.25,
+    generatorBox.max.z + 0.03
+);
+
+scene.add(neonIndicator);
+
+            activatedGenerators++;
+
+document.getElementById("objectives").textContent =
+    `${activatedGenerators} / 3`;
+
+            console.log(
+                `${generator.name} ACTIVADO`
+            );
+
+        }
+
+    });
+
+}
+
+
         if (key in r0Keys) {
             r0Keys[key] = true;
         }
@@ -1479,6 +1615,8 @@ function animate() {
             playerPosition.y,
             playerPosition.z
         );
+        
+
 
         cameraFollowPosition
             .copy(r0.position)
