@@ -26,92 +26,345 @@
 </head>
 
 <body>
-
-    <!-- Contenedor del videojuego -->
     <div id="game-container"></div>
-
     <!-- Pantalla inicial -->
     <div id="start-screen">
-        <div class="game-panel">
 
-            <h1>REACTOR ZERO</h1>
+        <div class="start-terminal">
 
-            <p class="subtitle">
-                PROTOCOLO DE EMERGENCIA
-            </p>
-
-            <hr>
-
-            <p>
-                Una falla crítica amenaza con destruir
-                la instalación.
-            </p>
-
-            <p>
-                Tu misión es recuperar el control
-                antes de que Reactor Zero colapse.
-            </p>
-
-            <div class="controls">
-                <p><strong>WASD</strong> Movimiento</p>
-                <p><strong>SHIFT</strong> Correr</p>
-                <p><strong>F</strong> Pulso de energía</p>
-                <p><strong>E</strong> Interactuar</p>
-                <p><strong>MOUSE</strong> Cámara</p>
+            <!-- Barra técnica superior -->
+            <div class="terminal-top">
+                <span>RZ // EMERGENCY TERMINAL</span>
+                <span class="terminal-id">FAC-01</span>
             </div>
 
-            <button id="start-button" class="btn btn-warning btn-lg">
-                INICIAR MISIÓN
+            <!-- Cabecera -->
+            <div class="terminal-header">
+
+                <div class="terminal-warning">
+                    <span class="warning-icon">!</span>
+                    CRITICAL SYSTEM FAILURE
+                </div>
+
+                <h1>
+                    REACTOR
+                    <span>ZERO</span>
+                </h1>
+
+                <p class="terminal-subtitle">
+                    PROTOCOLO DE CONTENCIÓN // RZ-01
+                </p>
+
+            </div>
+
+            <!-- Estado de la instalación -->
+            <div class="system-status">
+
+                <div class="status-title">
+                    <span>ESTADO DEL SISTEMA</span>
+                    <span>LIVE DATA</span>
+                </div>
+
+                <div class="status-row">
+                    <span>REACTOR CORE</span>
+                    <span class="status-danger">
+                        <i></i>
+                        INESTABLE
+                    </span>
+                </div>
+
+                <div class="status-row">
+                    <span>FACILITY CONTROL</span>
+                    <span class="status-danger">
+                        <i></i>
+                        OFFLINE
+                    </span>
+                </div>
+
+                <div class="status-row">
+                    <span>UNIT R-0</span>
+                    <span class="status-ready">
+                        <i></i>
+                        READY
+                    </span>
+                </div>
+
+            </div>
+
+            <!-- Misión -->
+            <div class="mission-directive">
+
+                <div class="directive-number">
+                    01
+                </div>
+
+                <div>
+                    <span class="directive-label">
+                        MISSION DIRECTIVE
+                    </span>
+
+                    <p>
+                        Una falla crítica amenaza con destruir la instalación.
+                        Recupera el control antes de que Reactor Zero colapse.
+                    </p>
+                </div>
+
+            </div>
+
+            <!-- Controles -->
+            <div class="start-controls">
+
+                <div>
+                    <kbd>WASD</kbd>
+                    <span>MOVIMIENTO</span>
+                </div>
+
+                <div>
+                    <kbd>SHIFT</kbd>
+                    <span>CORRER</span>
+                </div>
+
+                <div>
+                    <kbd>E</kbd>
+                    <span>INTERACTUAR</span>
+                </div>
+
+                <div>
+                    <kbd>F</kbd>
+                    <span>PULSO</span>
+                </div>
+
+                <div>
+                    <kbd>MOUSE</kbd>
+                    <span>CÁMARA</span>
+                </div>
+
+            </div>
+
+            <!-- Inicio -->
+            <div class="terminal-action">
+
+                <div class="terminal-ready">
+                    <span></span>
+                    SISTEMA LISTO // ESPERANDO OPERADOR
+                </div>
+
+                <button id="start-button" class="start-mission-button">
+                    <span>▶</span>
+                    INICIAR PROTOCOLO
+                </button>
+
+            </div>
+
+            <!-- Pie -->
+            <div class="terminal-footer">
+                <span>REACTOR ZERO CONTROL SYSTEM</span>
+                <span>BUILD // R0-01</span>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div id="hud" class="hidden">
+
+        <div class="hud-top-line">
+            <span>R-0 // CONTROL UNIT</span>
+            <span class="hud-code">FAC-01</span>
+        </div>
+
+        <div class="hud-title">
+            <div class="hud-status"></div>
+
+            <div>
+                <strong>REACTOR ZERO</strong>
+                <small>FACTORY OPERATIONS SYSTEM</small>
+            </div>
+        </div>
+
+        <div class="hud-separator">
+            <span></span>
+            <i></i>
+        </div>
+
+        <div class="hud-data">
+
+            <div class="hud-module">
+                <span class="hud-number">01</span>
+
+                <div class="hud-info">
+                    <span class="hud-label">SECTOR / NIVEL</span>
+                    <span id="level" class="hud-value">1</span>
+                </div>
+            </div>
+
+            <div class="hud-module">
+                <span class="hud-number">02</span>
+
+                <div class="hud-info">
+                    <span class="hud-label">OBJETIVOS</span>
+                    <span id="objectives" class="hud-value cyan">0 / 3</span>
+                </div>
+            </div>
+
+            <div class="hud-module">
+                <span class="hud-number">03</span>
+
+                <div class="hud-info hud-energy-info">
+                    <span class="hud-label">NÚCLEO DE ENERGÍA</span>
+
+                    <div class="energy-line">
+                        <div class="energy-bar">
+                            <div class="energy-fill"></div>
+                        </div>
+
+                        <span class="hud-value green">
+                            <span id="energy">100</span>%
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hud-module">
+                <span class="hud-number">04</span>
+
+                <div class="hud-info">
+                    <span class="hud-label">PUNTUACIÓN</span>
+                    <span id="score" class="hud-value">0</span>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="hud-footer">
+            <span class="signal-bars">
+                <i></i><i></i><i></i><i></i>
+            </span>
+
+            <span>SYS.READY</span>
+
+            <span class="hud-footer-code">RZ-01</span>
+        </div>
+
+    </div>
+    <!-- Nivel completado -->
+<div id="level-complete" class="hidden">
+
+    <div class="complete-terminal">
+
+        <!-- Barra superior -->
+        <div class="complete-top">
+            <span>RZ // SYSTEM RECOVERY</span>
+            <span class="complete-id">FAC-01</span>
+        </div>
+
+        <!-- Cabecera -->
+        <div class="complete-header">
+
+            <div class="complete-status">
+                <span class="complete-check">✓</span>
+                POWER GRID RESTORED
+            </div>
+
+            <h2>
+                ENERGÍA
+                <span>RESTAURADA</span>
+            </h2>
+
+            <p class="complete-subtitle">
+                SYSTEM REPORT // LEVEL 01
+            </p>
+
+        </div>
+
+        <!-- Reporte -->
+        <div class="recovery-report">
+
+            <div class="recovery-title">
+                <span>REPORTE DE SISTEMA</span>
+                <span>03 / 03</span>
+            </div>
+
+            <div class="recovery-row">
+                <span>GENERATOR 01</span>
+                <span class="recovery-online">
+                    <i></i>
+                    ONLINE
+                </span>
+            </div>
+
+            <div class="recovery-row">
+                <span>GENERATOR 02</span>
+                <span class="recovery-online">
+                    <i></i>
+                    ONLINE
+                </span>
+            </div>
+
+            <div class="recovery-row">
+                <span>GENERATOR 03</span>
+                <span class="recovery-online">
+                    <i></i>
+                    ONLINE
+                </span>
+            </div>
+
+            <div class="recovery-row recovery-main">
+                <span>FACILITY POWER</span>
+                <span class="recovery-online">
+                    <i></i>
+                    STABLE
+                </span>
+            </div>
+
+        </div>
+
+        <!-- Objetivo -->
+        <div class="complete-objective">
+
+            <div class="complete-objective-number">
+                03
+                <small>/03</small>
+            </div>
+
+            <div>
+                <span>OBJECTIVES COMPLETE</span>
+
+                <p>
+                    Los generadores de la fábrica están operativos.
+                    El suministro energético del sector ha sido restaurado.
+                </p>
+            </div>
+
+        </div>
+
+        <!-- Acción -->
+        <div class="complete-action">
+
+            <div class="complete-ready">
+                <span></span>
+                SYS.STATUS // OPERATIONAL
+            </div>
+
+            <button
+                id="next-level-button"
+                class="complete-button"
+            >
+                <span>▶</span>
+                CONTINUAR PROTOCOLO
             </button>
 
         </div>
-    </div>
 
-    <!-- HUD -->
-    <div id="hud" class="hidden">
-
-        <div>
-            <strong>REACTOR ZERO</strong>
-        </div>
-
-        <div>
-            NIVEL:
-            <span id="level">1</span>
-        </div>
-
-        <div>
-            OBJETIVOS:
-            <span id="objectives">0 / 3</span>
-        </div>
-
-        <div>
-            ENERGÍA:
-            <span id="energy">100</span>%
-        </div>
-
-        <div>
-            PUNTOS:
-            <span id="score">0</span>
+        <!-- Pie -->
+        <div class="complete-footer">
+            <span>LEVEL 01 // FACTORY</span>
+            <span>RECOVERY CONFIRMED</span>
         </div>
 
     </div>
-    <div id="level-complete" class="hidden">
 
-        <h2>ENERGÍA RESTAURADA</h2>
-
-        <p>
-            Los generadores de la fábrica están operativos.
-        </p>
-
-        <p>
-            NIVEL 1 COMPLETADO
-        </p>
-
-        <button id="next-level-button" class="btn btn-success btn-lg">
-    CONTINUAR
-</button>
-
-    </div>
+</div>
 
     <script type="module" src="./assets/js/main.js"></script>
 

@@ -33,120 +33,1263 @@ canvas {
     justify-content: center;
     align-items: center;
 
+    padding: 25px;
+
     background:
         radial-gradient(
-            circle,
-            rgba(20, 35, 45, 0.8),
-            rgba(0, 0, 0, 0.95)
+            circle at center,
+            rgba(16, 29, 32, 0.70),
+            rgba(2, 6, 8, 0.96)
         );
 
     z-index: 10;
 }
 
-.game-panel {
-    width: min(500px, 90%);
-    padding: 35px;
 
+/* =========================================
+   TERMINAL PRINCIPAL
+========================================= */
+
+.start-terminal {
+    position: relative;
+
+    width: min(720px, 94vw);
+
+    color: #e9eeee;
+
+    background:
+        linear-gradient(
+            145deg,
+            rgba(7, 16, 18, 0.98),
+            rgba(11, 22, 24, 0.96)
+        );
+
+    border-top: 2px solid #d89a43;
+    border-right: 1px solid rgba(216, 154, 67, 0.35);
+    border-bottom: 2px solid #d89a43;
+    border-left: 5px solid #d89a43;
+
+    clip-path: polygon(
+        0 0,
+        calc(100% - 32px) 0,
+        100% 32px,
+        100% 100%,
+        25px 100%,
+        0 calc(100% - 25px)
+    );
+
+    box-shadow:
+        0 0 40px rgba(0, 0, 0, 0.7),
+        inset 0 0 40px rgba(216, 154, 67, 0.025);
+
+    backdrop-filter: blur(8px);
+}
+
+
+/* =========================================
+   BARRA SUPERIOR
+========================================= */
+
+.terminal-top {
+    display: flex;
+    justify-content: space-between;
+
+    padding: 8px 18px;
+
+    color: #66777a;
+
+    background:
+        rgba(216, 154, 67, 0.035);
+
+    border-bottom:
+        1px solid rgba(216, 154, 67, 0.16);
+
+    font-family: monospace;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.terminal-id {
+    color: #d89a43;
+}
+
+
+/* =========================================
+   CABECERA
+========================================= */
+
+.terminal-header {
+    position: relative;
+
+    padding: 25px 32px 20px;
+}
+
+.terminal-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    color: #c85a48;
+
+    font-family: monospace;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.warning-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 18px;
+    height: 18px;
+
+    border: 1px solid #c85a48;
+
+    transform: rotate(45deg);
+}
+
+.warning-icon::first-letter {
+    transform: rotate(-45deg);
+}
+
+.terminal-header h1 {
+    margin: 15px 0 2px;
+
+    color: #e8eeee;
+
+    font-size: clamp(40px, 6vw, 68px);
+    font-weight: 300;
+
+    line-height: 0.88;
+    letter-spacing: 8px;
+}
+
+.terminal-header h1 span {
+    display: block;
+
+    color: #d89a43;
+
+    font-weight: 700;
+}
+
+.terminal-subtitle {
+    margin: 13px 0 0;
+
+    color: #73888c;
+
+    font-family: monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+}
+
+
+/* =========================================
+   ESTADO DEL SISTEMA
+========================================= */
+
+.system-status {
+    margin: 0 32px;
+
+    border-top:
+        1px solid rgba(255, 255, 255, 0.09);
+
+    border-bottom:
+        1px solid rgba(255, 255, 255, 0.09);
+}
+
+.status-title {
+    display: flex;
+    justify-content: space-between;
+
+    padding: 8px 0;
+
+    color: #526568;
+
+    font-family: monospace;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+}
+
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 7px 0;
+
+    color: #91a0a2;
+
+    font-family: monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+
+    border-top:
+        1px solid rgba(255, 255, 255, 0.035);
+}
+
+.status-danger,
+.status-ready {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    font-weight: bold;
+}
+
+.status-danger {
+    color: #c85a48;
+}
+
+.status-ready {
+    color: #7fa68a;
+}
+
+.status-danger i,
+.status-ready i {
+    width: 6px;
+    height: 6px;
+
+    border-radius: 50%;
+}
+
+.status-danger i {
+    background: #c85a48;
+
+    box-shadow:
+        0 0 7px rgba(200, 90, 72, 0.6);
+}
+
+.status-ready i {
+    background: #7fa68a;
+
+    box-shadow:
+        0 0 7px rgba(127, 166, 138, 0.5);
+}
+
+
+/* =========================================
+   DIRECTIVA DE MISIÓN
+========================================= */
+
+.mission-directive {
+    display: flex;
+    gap: 18px;
+
+    margin: 20px 32px;
+    padding: 14px 16px;
+
+    background:
+        linear-gradient(
+            90deg,
+            rgba(216, 154, 67, 0.07),
+            transparent
+        );
+
+    border-left: 2px solid #d89a43;
+}
+
+.directive-number {
+    color: #d89a43;
+
+    font-family: monospace;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.directive-label {
+    color: #d89a43;
+
+    font-family: monospace;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.mission-directive p {
+    margin: 6px 0 0;
+
+    max-width: 510px;
+
+    color: #aab5b7;
+
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+
+/* =========================================
+   CONTROLES
+========================================= */
+
+.start-controls {
+    display: grid;
+
+    grid-template-columns:
+        repeat(5, 1fr);
+
+    margin: 0 32px 20px;
+
+    border-top:
+        1px solid rgba(255, 255, 255, 0.08);
+
+    border-bottom:
+        1px solid rgba(255, 255, 255, 0.08);
+}
+
+.start-controls > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    gap: 6px;
+
+    padding: 12px 5px;
+
+    border-right:
+        1px solid rgba(255, 255, 255, 0.05);
+}
+
+.start-controls > div:last-child {
+    border-right: none;
+}
+
+.start-controls kbd {
+    min-width: 36px;
+
+    padding: 4px 7px;
+
+    color: #d89a43;
+
+    background: #111a1c;
+
+    border:
+        1px solid rgba(216, 154, 67, 0.45);
+
+    border-radius: 2px;
+
+    box-shadow:
+        inset 0 -2px 0 rgba(0, 0, 0, 0.5);
+
+    font-family: monospace;
+    font-size: 10px;
     text-align: center;
-
-    background: rgba(5, 15, 20, 0.95);
-
-    border: 1px solid #00e5ff;
-    border-radius: 10px;
-
-    color: white;
 }
 
-.game-panel h1 {
-    font-size: 3rem;
-    letter-spacing: 5px;
-    color: #00e5ff;
+.start-controls span {
+    color: #64777a;
+
+    font-size: 8px;
+    letter-spacing: 1px;
 }
 
-.subtitle {
-    letter-spacing: 3px;
-    color: #ffc107;
+
+/* =========================================
+   BOTÓN DE INICIO
+========================================= */
+
+.terminal-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 20px;
+
+    padding: 0 32px 22px;
 }
 
-.controls {
-    margin: 25px 0;
+.terminal-ready {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    color: #5f7275;
+
+    font-family: monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
 }
 
-.controls p {
-    margin: 7px;
+.terminal-ready > span {
+    width: 7px;
+    height: 7px;
+
+    background: #7fa68a;
+
+    border-radius: 50%;
+
+    box-shadow:
+        0 0 7px rgba(127, 166, 138, 0.5);
+}
+
+.start-mission-button {
+    padding: 11px 19px;
+
+    color: #0a0d0e;
+
+    background: #d89a43;
+
+    border: none;
+
+    clip-path: polygon(
+        8px 0,
+        100% 0,
+        100% calc(100% - 8px),
+        calc(100% - 8px) 100%,
+        0 100%,
+        0 8px
+    );
+
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+.start-mission-button:hover {
+    background: #efb45d;
+
+    transform: translateY(-2px);
+}
+
+.start-mission-button span {
+    margin-right: 7px;
+}
+
+
+/* =========================================
+   PIE
+========================================= */
+
+.terminal-footer {
+    display: flex;
+    justify-content: space-between;
+
+    padding: 7px 18px;
+
+    color: #405356;
+
+    background:
+        rgba(0, 0, 0, 0.22);
+
+    border-top:
+        1px solid rgba(216, 154, 67, 0.12);
+
+    font-family: monospace;
+    font-size: 7px;
+    letter-spacing: 1.3px;
+}
+
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 650px) {
+
+    .start-controls {
+        grid-template-columns:
+            repeat(2, 1fr);
+    }
+
+    .terminal-action {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .start-mission-button {
+        width: 100%;
+    }
 }
 
 /* -----------------------
    HUD
 ----------------------- */
 
+/* =========================================
+   HUD - REACTOR ZERO
+========================================= */
+/* =========================================
+   HUD INDUSTRIAL SCI-FI - REACTOR ZERO
+========================================= */
+
 #hud {
     position: fixed;
-
     top: 20px;
     left: 20px;
 
-    padding: 15px 20px;
+    width: 300px;
 
-    background: rgba(0, 0, 0, 0.75);
+    color: #e9faff;
+    z-index: 5;
 
-    border-left: 4px solid #00e5ff;
+    background:
+        linear-gradient(
+            145deg,
+            rgba(4, 13, 17, 0.97),
+            rgba(8, 27, 33, 0.93)
+        );
 
+    border-top: 2px solid #d89a43;
+    border-right: 1px solid rgba(0, 255, 136, 0.25);
+    border-bottom: 2px solid #d89a43;
+    border-left: 5px solid #d89a43;
+
+    /* Esquinas cortadas */
+    clip-path: polygon(
+        0 0,
+        calc(100% - 22px) 0,
+        100% 22px,
+        100% 100%,
+        18px 100%,
+        0 calc(100% - 18px)
+    );
+
+    box-shadow:
+        inset 0 0 30px rgba(0, 229, 255, 0.05);
+
+    backdrop-filter: blur(7px);
+
+    font-family:
+        "Segoe UI",
+        Arial,
+        sans-serif;
+}
+
+
+/* =========================================
+   LÍNEA TÉCNICA SUPERIOR
+========================================= */
+
+.hud-top-line {
+    display: flex;
+    justify-content: space-between;
+
+    padding: 7px 14px;
+
+    color: #58727a;
+
+    background: rgba(0, 229, 255, 0.04);
+
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+
+    border-bottom:
+        1px solid rgba(216, 154, 67, 0.12);
+}
+
+.hud-code {
+    color: #d89a43;
+}
+
+
+/* =========================================
+   CABECERA
+========================================= */
+
+.hud-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 14px 16px 11px;
+}
+
+.hud-title strong {
+    display: block;
+
+    font-size: 17px;
+    letter-spacing: 2.5px;
+}
+
+.hud-title small {
+    display: block;
+
+    margin-top: 4px;
+
+    color: #68868e;
+
+    font-size: 8px;
+    letter-spacing: 1.5px;
+}
+
+
+/* LED */
+
+.hud-status {
+    position: relative;
+
+    width: 11px;
+    height: 11px;
+
+    flex-shrink: 0;
+
+    background: #7fa68a;
+
+    border-radius: 50%;
+
+    box-shadow:
+        0 0 5px #7fa68a,
+        0 0 13px rgba(127, 166, 138, 0.8);
+}
+
+.hud-status::after {
+    content: "";
+
+    position: absolute;
+
+    inset: -5px;
+
+    border:
+        1px solid rgba(0, 255, 136, 0.25);
+
+    border-radius: 50%;
+}
+
+
+/* =========================================
+   SEPARADOR TÉCNICO
+========================================= */
+
+.hud-separator {
+    display: flex;
+    align-items: center;
+
+    padding: 0 16px 8px;
+}
+
+.hud-separator span {
+    width: 72%;
+    height: 2px;
+
+    background:
+        linear-gradient(
+            90deg,
+            #d89a43,
+            rgba(216, 154, 67, 0.08)
+        );
+}
+
+.hud-separator i {
+    width: 8px;
+    height: 8px;
+
+    margin-left: 7px;
+
+    border: 1px solid #d89a43;
+
+    transform: rotate(45deg);
+}
+
+
+/* =========================================
+   MÓDULOS DE INFORMACIÓN
+========================================= */
+
+.hud-data {
+    padding: 0 14px;
+}
+
+.hud-module {
+    display: flex;
+    align-items: center;
+
+    min-height: 47px;
+
+    border-top:
+        1px solid rgba(130, 190, 200, 0.09);
+}
+
+.hud-number {
+    width: 35px;
+
+    color: #36545c;
+
+    font-family: monospace;
+    font-size: 10px;
+}
+
+.hud-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    width: 100%;
+}
+
+.hud-label {
+    color: #78959d;
+
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+}
+
+.hud-value {
     color: white;
 
-    z-index: 5;
+    font-family: monospace;
+    font-size: 17px;
+    font-weight: bold;
 }
 
-#hud div {
-    margin: 5px 0;
+.hud-value.cyan {
+    color: #c85a48;
+
+    text-shadow:
+        0 0 6px rgba(200, 90, 72, 0.35);
 }
+
+.hud-value.green {
+    color: #7fa68a;
+
+    font-size: 13px;
+
+    text-shadow:
+        0 0 7px rgba(0, 255, 136, 0.5);
+}
+
+
+/* =========================================
+   BARRA DE ENERGÍA
+========================================= */
+
+.hud-energy-info {
+    display: block;
+}
+
+.energy-line {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+
+    margin-top: 6px;
+}
+
+.energy-bar {
+    position: relative;
+
+    width: 135px;
+    height: 6px;
+
+    overflow: hidden;
+
+    background: #10252b;
+
+    border:
+        1px solid rgba(0, 255, 136, 0.25);
+}
+
+.energy-fill {
+    width: 100%;
+    height: 100%;
+
+    background:
+        repeating-linear-gradient(
+            90deg,
+            #7fa68a 0px,
+            #7fa68a 8px,
+            transparent 8px,
+            transparent 11px
+        );
+
+    box-shadow:
+        0 0 8px rgba(127, 166, 138, 0.6);
+}
+
+
+/* =========================================
+   PIE DEL HUD
+========================================= */
+
+.hud-footer {
+    display: flex;
+    align-items: center;
+
+    margin-top: 5px;
+    padding: 8px 14px;
+
+    color: #47666e;
+
+    background:
+        rgba(0, 229, 255, 0.035);
+
+    border-top:
+        1px solid rgba(216, 154, 67, 0.12);
+
+    font-family: monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
+}
+
+.hud-footer-code {
+    margin-left: auto;
+
+    color: #d89a43;
+}
+
+
+/* =========================================
+   INDICADOR DE SEÑAL
+========================================= */
+
+.signal-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+
+    height: 10px;
+
+    margin-right: 8px;
+}
+
+.signal-bars i {
+    display: block;
+
+    width: 2px;
+
+    background: #d89a43;
+
+    box-shadow:
+        0 0 4px rgba(216, 154, 67, 0.7);
+}
+
+.signal-bars i:nth-child(1) {
+    height: 3px;
+}
+
+.signal-bars i:nth-child(2) {
+    height: 5px;
+}
+
+.signal-bars i:nth-child(3) {
+    height: 7px;
+}
+
+.signal-bars i:nth-child(4) {
+    height: 10px;
+}
+
 
 .hidden {
     display: none !important;
 }
 
-/* -----------------------
-   NIVEL COMPLETADO
------------------------ */
+/* =========================================
+   NIVEL COMPLETADO - SYSTEM RECOVERY
+========================================= */
 
 #level-complete {
     position: fixed;
+    inset: 0;
 
-    top: 50%;
-    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
-    transform: translate(-50%, -50%);
+    padding: 25px;
 
-    width: min(550px, 90%);
-    padding: 30px;
+    background: rgba(2, 6, 7, 0.68);
 
-    text-align: center;
-
-    background: rgba(5, 15, 20, 0.95);
-
-    border: 2px solid #00ff88;
-    border-radius: 10px;
-
-    color: white;
+    backdrop-filter: blur(4px);
 
     z-index: 20;
+}
+
+
+/* =========================================
+   TERMINAL
+========================================= */
+
+.complete-terminal {
+    width: min(650px, 94vw);
+
+    color: #e7eceb;
+
+    background:
+        linear-gradient(
+            145deg,
+            rgba(7, 16, 17, 0.98),
+            rgba(11, 23, 22, 0.97)
+        );
+
+    border-top: 2px solid #7fa68a;
+    border-right: 1px solid rgba(127, 166, 138, 0.35);
+    border-bottom: 2px solid #7fa68a;
+    border-left: 5px solid #7fa68a;
+
+    clip-path: polygon(
+        0 0,
+        calc(100% - 30px) 0,
+        100% 30px,
+        100% 100%,
+        24px 100%,
+        0 calc(100% - 24px)
+    );
 
     box-shadow:
-        0 0 15px rgba(0, 255, 136, 0.5),
-        0 0 35px rgba(0, 255, 136, 0.25);
+        0 0 45px rgba(0, 0, 0, 0.75),
+        inset 0 0 35px rgba(127, 166, 138, 0.025);
 }
 
-#level-complete h2 {
-    margin-bottom: 20px;
 
-    color: #00ff88;
+/* =========================================
+   BARRA SUPERIOR
+========================================= */
 
-    letter-spacing: 4px;
+.complete-top {
+    display: flex;
+    justify-content: space-between;
 
-    text-shadow:
-        0 0 10px rgba(0, 255, 136, 0.8);
+    padding: 8px 18px;
+
+    color: #637572;
+
+    background: rgba(127, 166, 138, 0.035);
+
+    border-bottom:
+        1px solid rgba(127, 166, 138, 0.16);
+
+    font-family: monospace;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 2px;
 }
 
-#level-complete p {
-    margin: 10px 0;
+.complete-id {
+    color: #d89a43;
+}
+
+
+/* =========================================
+   CABECERA
+========================================= */
+
+.complete-header {
+    padding: 23px 30px 18px;
+}
+
+.complete-status {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+
+    color: #7fa68a;
+
+    font-family: monospace;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.complete-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 20px;
+    height: 20px;
+
+    border: 1px solid #7fa68a;
+
+    font-size: 12px;
+}
+
+.complete-header h2 {
+    margin: 14px 0 3px;
+
+    color: #e8eeee;
+
+    font-size: clamp(34px, 5vw, 54px);
+    font-weight: 300;
+
+    line-height: 0.95;
+    letter-spacing: 6px;
+
+    text-align: left;
+}
+
+.complete-header h2 span {
+    display: block;
+
+    color: #7fa68a;
+
+    font-weight: 700;
+}
+
+.complete-subtitle {
+    margin: 12px 0 0 !important;
+
+    color: #71847f;
+
+    font-family: monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+
+    text-align: left;
+}
+
+
+/* =========================================
+   REPORTE DE RECUPERACIÓN
+========================================= */
+
+.recovery-report {
+    margin: 0 30px;
+
+    border-top:
+        1px solid rgba(255, 255, 255, 0.08);
+
+    border-bottom:
+        1px solid rgba(255, 255, 255, 0.08);
+}
+
+.recovery-title {
+    display: flex;
+    justify-content: space-between;
+
+    padding: 8px 0;
+
+    color: #536560;
+
+    font-family: monospace;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+}
+
+.recovery-title span:last-child {
+    color: #d89a43;
+}
+
+.recovery-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 7px 0;
+
+    color: #899995;
+
+    border-top:
+        1px solid rgba(255, 255, 255, 0.035);
+
+    font-family: monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+.recovery-main {
+    color: #d2dad8;
+}
+
+.recovery-online {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    color: #7fa68a;
+
+    font-weight: bold;
+}
+
+.recovery-online i {
+    width: 6px;
+    height: 6px;
+
+    background: #7fa68a;
+
+    border-radius: 50%;
+
+    box-shadow:
+        0 0 7px rgba(127, 166, 138, 0.55);
+}
+
+
+/* =========================================
+   OBJETIVOS COMPLETADOS
+========================================= */
+
+.complete-objective {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+
+    margin: 19px 30px;
+    padding: 13px 15px;
+
+    background:
+        linear-gradient(
+            90deg,
+            rgba(127, 166, 138, 0.08),
+            transparent
+        );
+
+    border-left: 2px solid #7fa68a;
+}
+
+.complete-objective-number {
+    color: #7fa68a;
+
+    font-family: monospace;
+    font-size: 25px;
+    font-weight: bold;
+}
+
+.complete-objective-number small {
+    color: #536560;
+
+    font-size: 11px;
+}
+
+.complete-objective > div:last-child > span {
+    color: #d89a43;
+
+    font-family: monospace;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+}
+
+.complete-objective p {
+    margin: 5px 0 0 !important;
+
+    color: #9ba8a5;
+
+    font-size: 12px;
+    line-height: 1.45;
+
+    text-align: left;
+}
+
+
+/* =========================================
+   ACCIÓN
+========================================= */
+
+.complete-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 20px;
+
+    padding: 0 30px 20px;
+}
+
+.complete-ready {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    color: #61736e;
+
+    font-family: monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
+}
+
+.complete-ready > span {
+    width: 7px;
+    height: 7px;
+
+    background: #7fa68a;
+
+    border-radius: 50%;
+
+    box-shadow:
+        0 0 7px rgba(127, 166, 138, 0.55);
+}
+
+
+/* =========================================
+   BOTÓN
+========================================= */
+
+.complete-button {
+    padding: 11px 18px;
+
+    color: #09100e;
+
+    background: #7fa68a;
+
+    border: none;
+
+    clip-path: polygon(
+        8px 0,
+        100% 0,
+        100% calc(100% - 8px),
+        calc(100% - 8px) 100%,
+        0 100%,
+        0 8px
+    );
+
+    font-family: monospace;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+.complete-button:hover {
+    background: #9bb8a2;
+
+    transform: translateY(-2px);
+}
+
+.complete-button span {
+    margin-right: 6px;
+}
+
+
+/* =========================================
+   PIE
+========================================= */
+
+.complete-footer {
+    display: flex;
+    justify-content: space-between;
+
+    padding: 7px 18px;
+
+    color: #455752;
+
+    background: rgba(0, 0, 0, 0.2);
+
+    border-top:
+        1px solid rgba(127, 166, 138, 0.12);
+
+    font-family: monospace;
+    font-size: 7px;
+    letter-spacing: 1.2px;
+}
+
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 600px) {
+
+    .complete-action {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .complete-button {
+        width: 100%;
+    }
 }
