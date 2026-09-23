@@ -27,6 +27,12 @@ const r0Keys = {
 const r0MoveDirection = new THREE.Vector3();
 const r0WalkSpeed = 3;
 const r0RunSpeed = 6;
+const cameraFollowOffset =
+    new THREE.Vector3(0, 4, 7);
+const cameraFollowPosition =
+    new THREE.Vector3();
+const cameraLookTarget =
+    new THREE.Vector3();
 
 scene.background = new THREE.Color(0x101820);
 
@@ -638,6 +644,7 @@ const controls =
     );
 
 controls.enableDamping = true;
+controls.enabled = false;
 
 controls.target.set(
     0,
@@ -860,9 +867,28 @@ function animate() {
             playR0Action("idle");
 
         }
+
+        cameraFollowPosition
+            .copy(r0.position)
+            .add(cameraFollowOffset);
+
+        camera.position.lerp(
+            cameraFollowPosition,
+            0.08
+        );
+
+        cameraLookTarget.set(
+            r0.position.x,
+            r0.position.y + 1.5,
+            r0.position.z
+        );
+
+        camera.lookAt(cameraLookTarget);
     }
 
-    controls.update();
+    if (controls.enabled) {
+        controls.update();
+    }
 
     renderer.render(
         scene,
