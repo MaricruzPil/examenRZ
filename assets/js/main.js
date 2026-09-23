@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
 /* ===============================
    ESCENA
@@ -8,6 +9,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const scene = new THREE.Scene();
 const loader = new GLTFLoader();
+const fbxLoader = new FBXLoader();
+const clock = new THREE.Clock();
+let r0Mixer = null;
 
 scene.background = new THREE.Color(0x101820);
 
@@ -382,6 +386,185 @@ loader.load(
 
 
 /* ===============================
+   PERSONAJE R-0 - PRUEBA
+================================ */
+
+fbxLoader.load(
+    "./assets/models/character/XBot.fbx",
+
+    function (xbot) {
+
+        xbot.traverse((child) => {
+
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+
+        });
+        xbot.scale.set(0.012, 0.012, 0.012);
+        xbot.position.set(
+            2,
+            0.05,
+            4
+        );
+
+        scene.add(xbot);
+
+        r0Mixer = new THREE.AnimationMixer(xbot);
+
+        console.log(
+            "R-0 cargado correctamente"
+        );
+
+        fbxLoader.load(
+            "./assets/models/character/Idle.fbx",
+
+            function (idle) {
+
+                if (idle.animations.length > 0) {
+
+                    const action =
+                        r0Mixer.clipAction(
+                            idle.animations[0]
+                        );
+
+                    action.stop();
+
+                    console.log(
+                        "Animación Idle cargada correctamente"
+                    );
+                }
+
+                fbxLoader.load(
+                    "./assets/models/character/Walk.fbx",
+
+                    function (walk) {
+
+                        if (walk.animations.length > 0) {
+
+                            const action =
+                                r0Mixer.clipAction(
+                                    walk.animations[0]
+                                );
+
+                            action.stop();
+
+                            console.log(
+                                "Animación Walk cargada correctamente"
+                            );
+                        }
+
+                        fbxLoader.load(
+                            "./assets/models/character/Run.fbx",
+
+                            function (run) {
+
+                                if (run.animations.length > 0) {
+
+                                    const action =
+                                        r0Mixer.clipAction(
+                                            run.animations[0]
+                                        );
+
+                                    action.stop();
+
+                                    console.log(
+                                        "Animación Run cargada correctamente"
+                                    );
+                                }
+
+                                fbxLoader.load(
+                                    "./assets/models/character/Attack.fbx",
+
+                                    function (attack) {
+
+                                        if (attack.animations.length > 0) {
+
+                                            const action =
+                                                r0Mixer.clipAction(
+                                                    attack.animations[0]
+                                                );
+
+                                            action.play();
+
+                                            console.log(
+                                                "Animación Attack cargada correctamente"
+                                            );
+                                        }
+
+                                    },
+
+                                    undefined,
+
+                                    function (error) {
+
+                                        console.error(
+                                            "Error cargando animación Attack:",
+                                            error
+                                        );
+
+                                    }
+                                );
+
+                            },
+
+                            undefined,
+
+                            function (error) {
+
+                                console.error(
+                                    "Error cargando animación Run:",
+                                    error
+                                );
+
+                            }
+                        );
+
+                    },
+
+                    undefined,
+
+                    function (error) {
+
+                        console.error(
+                            "Error cargando animación Walk:",
+                            error
+                        );
+
+                    }
+                );
+
+            },
+
+            undefined,
+
+            function (error) {
+
+                console.error(
+                    "Error cargando animación Idle:",
+                    error
+                );
+
+            }
+        );
+
+    },
+
+    undefined,
+
+    function (error) {
+
+        console.error(
+            "Error cargando R-0:",
+            error
+        );
+
+    }
+);
+
+
+/* ===============================
    GRID
 ================================ */
 
@@ -474,6 +657,12 @@ window.addEventListener(
 function animate() {
 
     requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+
+    if (r0Mixer) {
+        r0Mixer.update(delta);
+    }
 
     controls.update();
 
