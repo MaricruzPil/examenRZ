@@ -45,6 +45,10 @@ const LEVEL3_ESCAPE_TIME = 30;
 let level3EscapeActive = false;
 let level3EscapeTimeRemaining = LEVEL3_ESCAPE_TIME;
 let level3ExitZone = null;
+let objectiveMarker = null;
+let objectiveMarkerTarget = null;
+let objectiveMarkerLabel = "";
+let missionNotificationTimeout = null;
 let r0Energy = 100;
 let lastAnomalyDamageTime = 0;
 let gameOver = false;
@@ -63,6 +67,26 @@ const systemNotification =
 const notificationMessage =
     document.getElementById(
         "notification-message"
+    );
+const currentObjectiveDisplay =
+    document.getElementById(
+        "current-objective"
+    );
+const objectiveHintDisplay =
+    document.getElementById(
+        "objective-hint"
+    );
+const interactionPromptKey =
+    interactionPrompt.querySelector(
+        ".interaction-key"
+    );
+const interactionPromptLabel =
+    interactionPrompt.querySelector(
+        ".interaction-text small"
+    );
+const interactionPromptMessage =
+    interactionPrompt.querySelector(
+        ".interaction-text strong"
     );
 // Posiciones de los 3 generadores del Nivel 1
 const generatorPositions = [
@@ -2603,7 +2627,7 @@ const terminalReady =
 startButton.disabled = true;
 
 startButton.innerHTML =
-    "<span>⌛</span> CARGANDO SISTEMAS...";
+    "<span>&#8987;</span> CARGANDO SISTEMAS...";
 
 terminalReady.innerHTML =
     "<span></span> INICIALIZANDO REACTOR ZERO";
@@ -2618,7 +2642,7 @@ loadingManager.onLoad = () => {
     startButton.disabled = false;
 
     startButton.innerHTML =
-        "<span>▶</span> INICIAR PROTOCOLO";
+        "<span>&#9654;</span> INICIAR PROTOCOLO";
 
     terminalReady.innerHTML =
         "<span></span> SISTEMA LISTO // ESPERANDO OPERADOR";
@@ -2649,6 +2673,8 @@ startButton.addEventListener(
             )
             .classList
             .remove("hidden");
+
+        updateLevel1ObjectiveHud();
 
     }
 );
@@ -2803,6 +2829,18 @@ function cancelPendingAttackPulse() {
     }
 }
 
+function clearMissionNotification() {
+
+    if (missionNotificationTimeout !== null) {
+        clearTimeout(missionNotificationTimeout);
+        missionNotificationTimeout = null;
+    }
+
+    systemNotification
+        .classList
+        .add("hidden");
+}
+
 function scheduleAttackPulse() {
 
     cancelPendingAttackPulse();
@@ -2822,9 +2860,310 @@ function scheduleAttackPulse() {
     }, 2000);
 }
 
+function setHudObjective(title, hint = "") {
+
+    currentObjectiveDisplay.textContent = title;
+    objectiveHintDisplay.textContent = hint;
+}
+
+function showMissionNotification(message) {
+
+    if (missionNotificationTimeout !== null) {
+        clearTimeout(missionNotificationTimeout);
+        missionNotificationTimeout = null;
+    }
+
+    notificationMessage.textContent = message;
+
+    systemNotification
+        .classList
+        .remove("hidden");
+
+    missionNotificationTimeout = setTimeout(() => {
+
+        systemNotification
+            .classList
+            .add("hidden");
+
+        missionNotificationTimeout = null;
+
+    }, 2600);
+}
+
+function setInteractionPrompt(key, label, message) {
+
+    interactionPromptKey.textContent = key;
+    interactionPromptLabel.textContent = label;
+    interactionPromptMessage.textContent = message;
+
+    interactionPrompt
+        .classList
+        .remove("hidden");
+}
+
+function hideInteractionPrompt() {
+
+    interactionPrompt
+        .classList
+        .add("hidden");
+}
+
+function clearObjectiveMarker() {
+
+    if (!objectiveMarker) {
+        return;
+    }
+
+    scene.remove(objectiveMarker);
+    disposeObject3D(objectiveMarker);
+
+    objectiveMarker = null;
+    objectiveMarkerTarget = null;
+    objectiveMarkerLabel = "";
+}
+
+function createMarkerLabelSprite(text) {
+
+    const canvas =
+        document.createElement("canvas");
+
+    canvas.width = 384;
+    canvas.height = 96;
+
+    const context =
+        canvas.getContext("2d");
+
+    context.fillStyle = "rgba(3, 12, 14, 0.82)";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = "#d89a43";
+    context.lineWidth = 4;
+    context.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+    context.fillStyle = "#e9faff";
+    context.font = "bold 34px monospace";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+    const texture =
+        new THREE.CanvasTexture(canvas);
+
+    const material =
+        new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthWrite: false,
+            toneMapped: false
+        });
+
+    const sprite =
+        new THREE.Sprite(material);
+
+    sprite.scale.set(
+        2.25,
+        0.56,
+        1
+    );
+
+    sprite.position.y = 1.05;
+
+    return sprite;
+}
+
+function updateMarkerLabel(text) {
+
+    if (
+        !objectiveMarker ||
+        objectiveMarkerLabel === text
+    ) {
+        return;
+    }
+
+    const oldLabel =
+        objectiveMarker.userData.labelSprite;
+
+    if (oldLabel) {
+        objectiveMarker.remove(oldLabel);
+        disposeObject3D(oldLabel);
+    }
+
+    const labelSprite =
+        createMarkerLabelSprite(text);
+
+    objectiveMarker.add(labelSprite);
+    objectiveMarker.userData.labelSprite =
+        labelSprite;
+    objectiveMarkerLabel = text;
+}
+
+function createObjectiveMarker() {
+
+    const markerGroup =
+        new THREE.Group();
+
+    const ring =
+        new THREE.Mesh(
+            new THREE.TorusGeometry(
+                0.75,
+                0.035,
+                8,
+                32
+            ),
+            new THREE.MeshBasicMaterial({
+                color: 0xffc15a,
+                transparent: true,
+                opacity: 0.85,
+                toneMapped: false
+            })
+        );
+
+    const beacon =
+        new THREE.Mesh(
+            new THREE.SphereGeometry(
+                0.16,
+                12,
+                12
+            ),
+            new THREE.MeshBasicMaterial({
+                color: 0x00d9ff,
+                transparent: true,
+                opacity: 0.9,
+                toneMapped: false
+            })
+        );
+
+    beacon.position.y = 0.55;
+
+    const light =
+        new THREE.PointLight(
+            0x00d9ff,
+            0.9,
+            4
+        );
+
+    light.position.y = 0.5;
+
+    markerGroup.add(ring);
+    markerGroup.add(beacon);
+    markerGroup.add(light);
+
+    markerGroup.userData.ring = ring;
+    markerGroup.userData.beacon = beacon;
+
+    scene.add(markerGroup);
+
+    return markerGroup;
+}
+
+function setObjectiveMarker(target, label = "") {
+
+    if (!target) {
+        clearObjectiveMarker();
+        return;
+    }
+
+    if (!objectiveMarker) {
+        objectiveMarker = createObjectiveMarker();
+    }
+
+    objectiveMarkerTarget = target;
+    updateMarkerLabel(label);
+}
+
+function updateObjectiveMarker(delta) {
+
+    if (
+        !objectiveMarker ||
+        !objectiveMarkerTarget
+    ) {
+        return;
+    }
+
+    objectiveMarker.position.copy(
+        objectiveMarkerTarget.position
+    );
+
+    objectiveMarker.position.y += 2.15;
+    objectiveMarker.rotation.y += 1.7 * delta;
+
+    const pulse =
+        1 + Math.sin(performance.now() * 0.006) * 0.12;
+
+    objectiveMarker.scale.set(
+        pulse,
+        pulse,
+        pulse
+    );
+}
+
+function updateLevel1ObjectiveHud() {
+
+    if (currentLevel !== 1) {
+        return;
+    }
+
+    document.getElementById("level").textContent = "1";
+    document.getElementById("objectives").textContent =
+        `${activatedGenerators} / 3`;
+
+    if (activatedGenerators === 0) {
+        setHudObjective(
+            "ACTIVA GENERATOR 01",
+            "USA [E] INTERACTUAR"
+        );
+        setObjectiveMarker(
+            generators[0],
+            "GENERATOR 01"
+        );
+        return;
+    }
+
+    if (activatedGenerators === 1) {
+        setHudObjective(
+            "ACTIVA GENERATOR 02",
+            "USA [E] INTERACTUAR"
+        );
+        setObjectiveMarker(
+            generators[1],
+            "GENERATOR 02"
+        );
+        return;
+    }
+
+    if (
+        activatedGenerators === 2 &&
+        energyAnomaly
+    ) {
+        setHudObjective(
+            "DESTRUYE LA ANOMALÍA",
+            "USA [F] PULSO DE ENERGÍA"
+        );
+        setObjectiveMarker(
+            energyAnomaly,
+            "ANOMALÍA"
+        );
+        return;
+    }
+
+    if (activatedGenerators === 2) {
+        setHudObjective(
+            "ACTIVA GENERATOR 03",
+            "USA [E] INTERACTUAR"
+        );
+        setObjectiveMarker(
+            generators[2],
+            "GENERATOR 03"
+        );
+        return;
+    }
+
+    clearObjectiveMarker();
+}
+
 function clearLevelMissionObjects() {
 
     cancelPendingAttackPulse();
+    clearMissionNotification();
+    clearObjectiveMarker();
 
     generators.forEach((generator) => {
 
@@ -2865,9 +3204,15 @@ function disposeObject3D(object) {
         if (child.material) {
             if (Array.isArray(child.material)) {
                 child.material.forEach((material) => {
+                    if (material.map) {
+                        material.map.dispose();
+                    }
                     material.dispose();
                 });
             } else {
+                if (child.material.map) {
+                    child.material.map.dispose();
+                }
                 child.material.dispose();
             }
         }
@@ -3007,14 +3352,26 @@ function updateLevel2Hud() {
     document.getElementById("level").textContent = "2";
     document.getElementById("objectives").textContent =
         `${destroyedUnstableCores} / 5`;
+    setHudObjective(
+        "DESTRUYE LOS NÚCLEOS INESTABLES",
+        "USA [F] PULSO DE ENERGÍA"
+    );
+    clearObjectiveMarker();
 }
 
 function prepareLevel1CompleteScreen() {
 
     cancelPendingAttackPulse();
+    clearObjectiveMarker();
 
     const levelComplete =
         document.getElementById("level-complete");
+    const recoveryRows =
+        levelComplete.querySelectorAll(".recovery-row");
+
+    recoveryRows.forEach((row) => {
+        row.style.display = "";
+    });
 
     levelComplete.querySelector(".complete-id").textContent =
         "FAC-01";
@@ -3035,12 +3392,13 @@ function prepareLevel1CompleteScreen() {
     levelComplete.querySelector(".complete-footer span:last-child").textContent =
         "RECOVERY CONFIRMED";
     nextLevelButton.innerHTML =
-        "<span>â–¶</span> ACCEDER AL LABORATORIO";
+        "<span>&#9654;</span> ACCEDER AL LABORATORIO";
 }
 
 function showLevel2Complete() {
 
     cancelPendingAttackPulse();
+    clearObjectiveMarker();
 
     levelCompleted = true;
 
@@ -3048,6 +3406,10 @@ function showLevel2Complete() {
         document.getElementById("level-complete");
     const recoveryRows =
         levelComplete.querySelectorAll(".recovery-row");
+
+    recoveryRows.forEach((row) => {
+        row.style.display = "";
+    });
 
     levelComplete.querySelector(".complete-id").textContent =
         "LAB-02";
@@ -3089,7 +3451,7 @@ function showLevel2Complete() {
     levelComplete.querySelector(".complete-footer span:last-child").textContent =
         "NEXT SECTOR // REACTOR ZERO";
     nextLevelButton.innerHTML =
-        "<span>â–¶</span> ACCEDER A REACTOR ZERO";
+        "<span>&#9654;</span> ACCEDER A REACTOR ZERO";
 
     levelComplete
         .classList
@@ -3111,6 +3473,9 @@ function loadLevel2() {
     updateTimerHud();
     createLevel2Cores();
     updateLevel2Hud();
+    showMissionNotification(
+        "LABORATORIO // 5 NÚCLEOS INESTABLES DETECTADOS"
+    );
     moveR0ToStart({
         x: 0,
         y: 0.05,
@@ -3231,6 +3596,11 @@ function updateLevel3Hud() {
     document.getElementById("level").textContent = "3";
     document.getElementById("objectives").textContent =
         `${destroyedReactorSupports} / 3`;
+    setHudObjective(
+        "DESTRUYE LOS SOPORTES DEL REACTOR",
+        "USA [F] PULSO DE ENERGÍA"
+    );
+    clearObjectiveMarker();
 }
 
 function updateLevel3EscapeHud() {
@@ -3238,10 +3608,41 @@ function updateLevel3EscapeHud() {
     document.getElementById("level").textContent = "3";
     document.getElementById("objectives").textContent =
         "ESCAPA DEL REACTOR";
+    setHudObjective(
+        "⚠ EVACUACIÓN DE EMERGENCIA",
+        "LLEGA A LA SALIDA"
+    );
     timerDisplay.textContent =
         formatTimer(
             Math.ceil(level3EscapeTimeRemaining)
         );
+}
+
+function getLevel3ExitPosition() {
+
+    if (doorFrameModel) {
+        doorFrameModel.updateMatrixWorld(true);
+
+        const doorBox =
+            new THREE.Box3().setFromObject(doorFrameModel);
+
+        const doorCenter =
+            new THREE.Vector3();
+
+        doorBox.getCenter(doorCenter);
+
+        return {
+            x: doorCenter.x,
+            y: 0,
+            z: doorCenter.z
+        };
+    }
+
+    return {
+        x: 2,
+        y: 0,
+        z: 9.74
+    };
 }
 
 function createLevel3Exit() {
@@ -3260,59 +3661,100 @@ function createLevel3Exit() {
 
     const marker =
         new THREE.Mesh(
-            new THREE.CylinderGeometry(
-                1.6,
-                1.6,
+            new THREE.BoxGeometry(
+                2.6,
                 0.08,
-                32
+                1.25
             ),
             markerMaterial
         );
 
     marker.position.y = 0.08;
 
-    const gateMaterial =
-        new THREE.MeshBasicMaterial({
-            color: 0x00d9ff,
-            transparent: true,
-            opacity: 0.55,
-            toneMapped: false
-        });
-
-    const gate =
+    const arrow =
         new THREE.Mesh(
-            new THREE.TorusGeometry(
-                1.15,
-                0.08,
-                12,
-                40
+            new THREE.ConeGeometry(
+                0.22,
+                0.55,
+                3
             ),
-            gateMaterial
+            new THREE.MeshBasicMaterial({
+                color: 0x00ffcc,
+                transparent: true,
+                opacity: 0.75,
+                toneMapped: false
+            })
         );
 
-    gate.position.y = 1.35;
+    arrow.position.y = 1.75;
+    arrow.rotation.x = Math.PI;
 
     const light =
         new THREE.PointLight(
             0x00ffcc,
-            2,
-            8
+            1.6,
+            7
         );
 
-    light.position.y = 1.4;
+    light.position.y = 1.2;
+
+    const canvas =
+        document.createElement("canvas");
+
+    canvas.width = 256;
+    canvas.height = 96;
+
+    const context =
+        canvas.getContext("2d");
+
+    context.fillStyle = "rgba(0, 12, 14, 0.78)";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = "#00ffcc";
+    context.lineWidth = 5;
+    context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+    context.fillStyle = "#00ffcc";
+    context.font = "bold 44px monospace";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("EVAC", canvas.width / 2, canvas.height / 2);
+
+    const signTexture =
+        new THREE.CanvasTexture(canvas);
+
+    const sign =
+        new THREE.Sprite(
+            new THREE.SpriteMaterial({
+                map: signTexture,
+                transparent: true,
+                depthWrite: false,
+                toneMapped: false
+            })
+        );
+
+    sign.position.y = 2.55;
+    sign.scale.set(
+        1.9,
+        0.72,
+        1
+    );
 
     exitGroup.add(marker);
-    exitGroup.add(gate);
+    exitGroup.add(arrow);
     exitGroup.add(light);
+    exitGroup.add(sign);
+
+    const exitPosition =
+        getLevel3ExitPosition();
 
     exitGroup.position.set(
-        0,
-        0,
-        10
+        exitPosition.x,
+        exitPosition.y,
+        exitPosition.z
     );
 
     exitGroup.visible = false;
-    exitGroup.userData.radius = 1.7;
+    exitGroup.userData.halfWidth = 1.35;
+    exitGroup.userData.halfDepth = 0.75;
 
     scene.add(exitGroup);
     level3ExitZone = exitGroup;
@@ -3329,22 +3771,12 @@ function startLevel3Escape() {
     }
 
     level3ExitZone.visible = true;
+    clearObjectiveMarker();
     updateLevel3EscapeHud();
 
-    notificationMessage.textContent =
-        "REACTOR ESCAPE PHASE // EVACUATE";
-
-    systemNotification
-        .classList
-        .remove("hidden");
-
-    setTimeout(() => {
-
-        systemNotification
-            .classList
-            .add("hidden");
-
-    }, 2500);
+    showMissionNotification(
+        "⚠ COLAPSO INMINENTE // EVACÚA LA INSTALACIÓN"
+    );
 }
 
 function checkLevel3Exit() {
@@ -3360,13 +3792,17 @@ function checkLevel3Exit() {
     const exitPosition =
         level3ExitZone.position;
 
-    const horizontalDistance =
-        Math.hypot(
-            r0.position.x - exitPosition.x,
-            r0.position.z - exitPosition.z
-        );
+    const insideExitWidth =
+        Math.abs(
+            r0.position.x - exitPosition.x
+        ) <= level3ExitZone.userData.halfWidth;
 
-    if (horizontalDistance <= level3ExitZone.userData.radius) {
+    const insideExitDepth =
+        Math.abs(
+            r0.position.z - exitPosition.z
+        ) <= level3ExitZone.userData.halfDepth;
+
+    if (insideExitWidth && insideExitDepth) {
         showFinalVictory();
     }
 }
@@ -3419,6 +3855,7 @@ function updateLevel3Escape(delta) {
 function showFinalVictory() {
 
     cancelPendingAttackPulse();
+    clearObjectiveMarker();
 
     levelCompleted = true;
     level3EscapeActive = false;
@@ -3427,6 +3864,10 @@ function showFinalVictory() {
         document.getElementById("level-complete");
     const recoveryRows =
         levelComplete.querySelectorAll(".recovery-row");
+
+    recoveryRows.forEach((row) => {
+        row.style.display = "";
+    });
 
     levelComplete.querySelector(".complete-id").textContent =
         "RZ-03";
@@ -3446,13 +3887,18 @@ function showFinalVictory() {
         const status =
             row.querySelector(".recovery-online");
 
+        if (index > 2) {
+            row.remove();
+            return;
+        }
+
         if (label && index === 0) {
             label.textContent =
                 "SOPORTES DEL REACTOR";
         } else if (label && index === 1) {
             label.textContent =
                 "EVACUACIÓN";
-        } else if (label) {
+        } else if (label && index === 2) {
             label.textContent =
                 "REACTOR ZERO";
         }
@@ -3475,7 +3921,7 @@ function showFinalVictory() {
     levelComplete.querySelector(".complete-footer span:last-child").textContent =
         "REACTOR ZERO STABILIZED";
     nextLevelButton.innerHTML =
-        "<span>↻</span> REINICIAR MISIÓN";
+        "<span>&#8635;</span> REINICIAR MISIÓN";
 
     levelComplete
         .classList
@@ -3518,6 +3964,9 @@ function loadLevel3() {
     createReactorSupports();
     createLevel3Exit();
     updateLevel3Hud();
+    showMissionNotification(
+        "REACTOR ZERO // 3 SOPORTES CRÍTICOS DETECTADOS"
+    );
     moveR0ToStart({
         x: 0,
         y: 0.05,
@@ -3617,6 +4066,22 @@ window.addEventListener(
                             .add("hidden");
 
                     }, 2500);
+
+                    if (activatedGenerators === 1) {
+                        showMissionNotification(
+                            "GENERATOR 01 ONLINE // NUEVO OBJETIVO: GENERATOR 02"
+                        );
+                    } else if (activatedGenerators === 2) {
+                        showMissionNotification(
+                            "GENERATOR 02 ONLINE // ANOMALÍA DETECTADA"
+                        );
+                    } else {
+                        showMissionNotification(
+                            "GENERATOR 03 ONLINE // SECTOR RESTAURADO"
+                        );
+                    }
+
+                    updateLevel1ObjectiveHud();
 
                     document.getElementById("objectives").textContent =
                         `${activatedGenerators} / 3`;
@@ -4620,6 +5085,12 @@ function animate() {
                             if (generator3) {
                                 generator3.userData.blocked = false;
                             }
+
+                            showMissionNotification(
+                                "ANOMALÍA NEUTRALIZADA // GENERATOR 03 DISPONIBLE"
+                            );
+
+                            updateLevel1ObjectiveHud();
                         }
 
                         console.log(
@@ -4770,6 +5241,7 @@ function animate() {
     }
 
     updatePulseImpactEffects(delta);
+    updateObjectiveMarker(delta);
 
     // ===============================
     // SINCRONIZAR CAJAS CON RAPIER
@@ -4844,7 +5316,7 @@ function animate() {
         // INDICADOR DE INTERACCIÓN
         // ===============================
 
-        let generatorNearby = false;
+        let promptShown = false;
 
         if (currentLevel === 1) {
 
@@ -4858,28 +5330,54 @@ function animate() {
                 if (
                     distance < 2 &&
                     !generator.userData.activated &&
-                    !generator.userData.blocked &&
-                    generator.name ===
-                    `Generator_${activatedGenerators + 1}`
+                    !promptShown
                 ) {
-                    generatorNearby = true;
+                    const generatorNumber =
+                        Number(
+                            generator.name.replace(
+                                "Generator_",
+                                ""
+                            )
+                        );
+
+                    const expectedGenerator =
+                        activatedGenerators + 1;
+
+                    if (
+                        generatorNumber === expectedGenerator &&
+                        !generator.userData.blocked
+                    ) {
+                        setInteractionPrompt(
+                            "E",
+                            "INTERACTUAR",
+                            `ACTIVAR GENERATOR ${String(generatorNumber).padStart(2, "0")}`
+                        );
+                    } else if (
+                        generatorNumber === 3 &&
+                        generator.userData.blocked &&
+                        activatedGenerators === 2
+                    ) {
+                        setInteractionPrompt(
+                            "!",
+                            "BLOQUEADO",
+                            "ELIMINA LA ANOMALÍA"
+                        );
+                    } else {
+                        setInteractionPrompt(
+                            "!",
+                            `GENERATOR ${String(generatorNumber).padStart(2, "0")} BLOQUEADO`,
+                            `ACTIVA GENERATOR ${String(expectedGenerator).padStart(2, "0")} PRIMERO`
+                        );
+                    }
+
+                    promptShown = true;
                 }
 
             });
         }
 
-        if (generatorNearby) {
-
-            interactionPrompt
-                .classList
-                .remove("hidden");
-
-        } else {
-
-            interactionPrompt
-                .classList
-                .add("hidden");
-
+        if (!promptShown) {
+            hideInteractionPrompt();
         }
 
 

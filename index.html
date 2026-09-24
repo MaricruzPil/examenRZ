@@ -154,6 +154,24 @@
 
             </div>
 
+            <div class="control-protocol">
+                <div class="protocol-title">
+                    PROTOCOLO DE MISIÓN
+                </div>
+
+                <div class="protocol-grid">
+                    <div>
+                        <span>ACTIVA LOS GENERADORES EN ORDEN</span>
+                        <p>GENERATOR 01 -> GENERATOR 02 -> GENERATOR 03</p>
+                    </div>
+
+                    <div>
+                        <span>PROTOCOLO DE SEGURIDAD</span>
+                        <p>[F] elimina anomalías que bloqueen el protocolo.</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Inicio -->
             <div class="terminal-action">
 
@@ -163,7 +181,7 @@
                 </div>
 
                 <button id="start-button" class="start-mission-button">
-                    <span>▶</span>
+                    <span>&#9654;</span>
                     INICIAR PROTOCOLO
                 </button>
 
@@ -254,6 +272,16 @@
             <div class="hud-module">
                 <span class="hud-number">03</span>
 
+                <div class="hud-info hud-objective-info">
+                    <span class="hud-label">OBJETIVO ACTUAL</span>
+                    <span id="current-objective" class="hud-value cyan">ACTIVA GENERATOR 01</span>
+                    <small id="objective-hint" class="hud-objective-hint">USA [E] INTERACTUAR</small>
+                </div>
+            </div>
+
+            <div class="hud-module">
+                <span class="hud-number">05</span>
+
                 <div class="hud-info hud-energy-info">
                     <span class="hud-label">NÚCLEO DE ENERGÍA</span>
 
@@ -277,7 +305,7 @@
                     <span id="score" class="hud-value">0</span>
                 </div>
                 <div class="hud-module">
-                    <span class="hud-number">05</span>
+                    <span class="hud-number">06</span>
 
                     <div class="hud-info">
                         <span class="hud-label">TIEMPO RESTANTE</span>
@@ -424,7 +452,7 @@
                 </div>
 
                 <button id="next-level-button" class="complete-button">
-                    <span>▶</span>
+                    <span>&#9654;</span>
                     ACCEDER AL LABORATORIO
                 </button>
 

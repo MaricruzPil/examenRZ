@@ -33,7 +33,7 @@ canvas {
     justify-content: center;
     align-items: center;
 
-    padding: 25px;
+    padding: clamp(10px, 2vh, 20px);
 
     background:
         radial-gradient(
@@ -53,7 +53,9 @@ canvas {
 .start-terminal {
     position: relative;
 
-    width: min(720px, 94vw);
+    width: min(820px, 96vw);
+    max-height: calc(100vh - 20px);
+    overflow: hidden;
 
     color: #e9eeee;
 
@@ -94,7 +96,7 @@ canvas {
     display: flex;
     justify-content: space-between;
 
-    padding: 8px 18px;
+    padding: clamp(5px, 1vh, 8px) 18px;
 
     color: #66777a;
 
@@ -122,7 +124,7 @@ canvas {
 .terminal-header {
     position: relative;
 
-    padding: 25px 32px 20px;
+    padding: clamp(12px, 2vh, 22px) 32px clamp(8px, 1.5vh, 16px);
 }
 
 .terminal-warning {
@@ -156,11 +158,11 @@ canvas {
 }
 
 .terminal-header h1 {
-    margin: 15px 0 2px;
+    margin: clamp(7px, 1.4vh, 13px) 0 2px;
 
     color: #e8eeee;
 
-    font-size: clamp(40px, 6vw, 68px);
+    font-size: clamp(36px, 5.2vw, 58px);
     font-weight: 300;
 
     line-height: 0.88;
@@ -176,7 +178,7 @@ canvas {
 }
 
 .terminal-subtitle {
-    margin: 13px 0 0;
+    margin: clamp(7px, 1.2vh, 11px) 0 0;
 
     color: #73888c;
 
@@ -204,7 +206,7 @@ canvas {
     display: flex;
     justify-content: space-between;
 
-    padding: 8px 0;
+    padding: clamp(4px, 0.8vh, 7px) 0;
 
     color: #526568;
 
@@ -218,7 +220,7 @@ canvas {
     justify-content: space-between;
     align-items: center;
 
-    padding: 7px 0;
+    padding: clamp(4px, 0.8vh, 6px) 0;
 
     color: #91a0a2;
 
@@ -278,8 +280,8 @@ canvas {
     display: flex;
     gap: 18px;
 
-    margin: 20px 32px;
-    padding: 14px 16px;
+    margin: clamp(10px, 1.6vh, 16px) 32px;
+    padding: clamp(9px, 1.4vh, 12px) 16px;
 
     background:
         linear-gradient(
@@ -309,14 +311,14 @@ canvas {
 }
 
 .mission-directive p {
-    margin: 6px 0 0;
+    margin: 4px 0 0;
 
     max-width: 510px;
 
     color: #aab5b7;
 
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: clamp(11px, 1.5vh, 13px);
+    line-height: 1.38;
 }
 
 
@@ -330,7 +332,7 @@ canvas {
     grid-template-columns:
         repeat(5, 1fr);
 
-    margin: 0 32px 20px;
+    margin: 0 32px clamp(9px, 1.4vh, 14px);
 
     border-top:
         1px solid rgba(255, 255, 255, 0.08);
@@ -346,7 +348,7 @@ canvas {
 
     gap: 6px;
 
-    padding: 12px 5px;
+    padding: clamp(7px, 1.2vh, 10px) 5px;
 
     border-right:
         1px solid rgba(255, 255, 255, 0.05);
@@ -385,6 +387,50 @@ canvas {
     letter-spacing: 1px;
 }
 
+.control-protocol {
+    margin: 0 32px clamp(9px, 1.4vh, 14px);
+    padding: clamp(8px, 1.2vh, 10px) 14px;
+
+    background: rgba(0, 229, 255, 0.035);
+
+    border-top: 1px solid rgba(216, 154, 67, 0.16);
+    border-bottom: 1px solid rgba(216, 154, 67, 0.16);
+
+    font-family: monospace;
+}
+
+.protocol-title {
+    margin-bottom: 7px;
+
+    color: #d89a43;
+
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+}
+
+.protocol-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+}
+
+.protocol-grid span {
+    color: #7fa68a;
+
+    font-size: 8px;
+    letter-spacing: 1.5px;
+}
+
+.protocol-grid p {
+    margin: 3px 0 0;
+
+    color: #9fb0b3;
+
+    font-size: 9px;
+    line-height: 1.35;
+}
+
 
 /* =========================================
    BOTÓN DE INICIO
@@ -397,7 +443,7 @@ canvas {
 
     gap: 20px;
 
-    padding: 0 32px 22px;
+    padding: 0 32px clamp(12px, 1.8vh, 18px);
 }
 
 .terminal-ready {
@@ -498,6 +544,10 @@ canvas {
     .start-controls {
         grid-template-columns:
             repeat(2, 1fr);
+    }
+
+    .protocol-grid {
+        grid-template-columns: 1fr;
     }
 
     .terminal-action {
@@ -765,6 +815,32 @@ canvas {
 
 .hud-energy-info {
     display: block;
+}
+
+.hud-objective-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+
+    gap: 3px;
+}
+
+#current-objective {
+    max-width: 220px;
+
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.hud-objective-hint {
+    color: #7fa68a;
+
+    font-family: monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
 }
 
 .energy-line {
@@ -1622,6 +1698,151 @@ canvas {
 
     font-size: 12px;
     line-height: 1.6;
+}
+
+@media (max-height: 780px) {
+
+    #start-screen,
+    #level-complete {
+        padding: 8px;
+    }
+
+    .start-terminal {
+        max-height: calc(100vh - 16px);
+    }
+
+    .terminal-header {
+        padding-top: 8px;
+        padding-bottom: 5px;
+    }
+
+    .terminal-header h1 {
+        margin-top: 5px;
+        font-size: clamp(32px, 4.2vw, 48px);
+        letter-spacing: 6px;
+    }
+
+    .terminal-subtitle {
+        margin-top: 5px;
+    }
+
+    .system-status,
+    .mission-directive,
+    .start-controls,
+    .control-protocol {
+        margin-left: 24px;
+        margin-right: 24px;
+    }
+
+    .mission-directive {
+        gap: 12px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    .directive-number {
+        font-size: 18px;
+    }
+
+    .status-title {
+        padding: 3px 0;
+    }
+
+    .status-row {
+        padding: 3px 0;
+    }
+
+    .directive-story {
+        display: none;
+    }
+
+    .start-controls {
+        margin-bottom: 7px;
+    }
+
+    .start-controls > div {
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+
+    .control-protocol {
+        margin-bottom: 8px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+    }
+
+    .protocol-title {
+        margin-bottom: 5px;
+    }
+
+    .protocol-grid {
+        gap: 4px;
+    }
+
+    .protocol-grid p {
+        line-height: 1.25;
+    }
+
+    .terminal-action {
+        padding-left: 24px;
+        padding-right: 24px;
+        padding-bottom: 12px;
+    }
+
+    .terminal-footer {
+        display: none;
+    }
+
+    .complete-terminal {
+        max-height: calc(100vh - 20px);
+        overflow: hidden;
+    }
+
+    .complete-header {
+        padding: 14px 24px 10px;
+    }
+
+    .complete-header h2 {
+        font-size: clamp(28px, 4.4vw, 44px);
+    }
+
+    .recovery-report,
+    .complete-objective {
+        margin-left: 24px;
+        margin-right: 24px;
+    }
+
+    .complete-objective {
+        padding: 10px 12px;
+    }
+
+    .complete-action {
+        padding: 0 24px 14px;
+    }
+
+    #hud {
+        top: 12px;
+        left: 12px;
+        width: 285px;
+    }
+
+    .hud-title {
+        padding: 10px 14px 8px;
+    }
+
+    .hud-module {
+        min-height: 40px;
+    }
+
+    #interaction-prompt {
+        bottom: 28px;
+    }
+
+    #system-notification {
+        top: 18px;
+    }
 }
 
 .game-over-code {
