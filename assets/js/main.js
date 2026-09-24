@@ -31,6 +31,28 @@ let isR0Attacking = false;
 const generators = [];
 let activatedGenerators = 0;
 let levelCompleted = false;
+const energyPulses = [];
+let energyAnomaly = null;
+let energyAnomalyHealth = 3;
+let r0Energy = 100;
+let lastAnomalyDamageTime = 0;
+let gameOver = false;
+const LEVEL_TIME_LIMIT = 120;
+let timerAccumulator = 0;
+let levelTimeRemaining = LEVEL_TIME_LIMIT;
+const interactionPrompt =
+    document.getElementById(
+        "interaction-prompt"
+    );
+const systemNotification =
+    document.getElementById(
+        "system-notification"
+    );
+
+const notificationMessage =
+    document.getElementById(
+        "notification-message"
+    );
 // Posiciones de los 3 generadores del Nivel 1
 const generatorPositions = [
     { x: -8, y: 0.70, z: -5 },
@@ -1475,6 +1497,8 @@ loader.load(
 
             generator.name = `Generator_${index + 1}`;
             generator.userData.activated = false;
+            generator.userData.blocked =
+                index === 2;
             generators.push(generator);
 
             scene.add(generator);
@@ -1681,6 +1705,50 @@ loader.load(
             -10,
             5.2,
             5
+        );
+        // ===============================
+        // BLOQUEO FÍSICO - GENERADOR 02
+        // ===============================
+
+        createDynamicCrate(
+            crateOriginal,
+            6.5,
+            1.2,
+            -3.2
+        );
+
+        createDynamicCrate(
+            crateOriginal,
+            8.3,
+            1.2,
+            -2.8
+        );
+
+        createDynamicCrate(
+            crateOriginal,
+            9.8,
+            1.2,
+            -3.6
+        );
+        createDynamicCrate(
+            crateOriginal,
+            6.9,
+            1.2,
+            -5.9
+        );
+
+        createDynamicCrate(
+            crateOriginal,
+            9.2,
+            1.2,
+            -6.3
+        );
+
+        createDynamicCrate(
+            crateOriginal,
+            10.6,
+            1.2,
+            -5.1
         );
 
         console.log(
@@ -2178,7 +2246,39 @@ loader.load(
     }
 );
 
+/* ===============================
+   ANOMALÍA DE ENERGÍA - NIVEL 1
+================================ */
 
+loader.load(
+    "./assets/models/anomaly/scene.gltf",
+
+    (gltf) => {
+
+        energyAnomaly = gltf.scene;
+
+        energyAnomaly.position.set(
+            0,
+            1.2,
+            3.2
+        );
+
+        scene.add(energyAnomaly);
+
+        console.log(
+            "MODELO DE ANOMALÍA CARGADO"
+        );
+    },
+
+    undefined,
+
+    (error) => {
+        console.error(
+            "Error cargando anomalía:",
+            error
+        );
+    }
+);
 
 /* ===============================
    PERSONAJE R-0 - PRUEBA
@@ -2201,9 +2301,9 @@ fbxLoader.load(
         });
         xbot.scale.set(0.012, 0.012, 0.012);
         xbot.position.set(
-            2,
+            0,
             0.05,
-            4
+            0
         );
 
         scene.add(xbot);
@@ -2538,6 +2638,43 @@ startButton.addEventListener(
 
     }
 );
+const energyDisplay =
+    document.getElementById("energy");
+const energyFill =
+    document.querySelector(".energy-fill");
+const timerDisplay =
+    document.getElementById("timer");
+
+energyDisplay.textContent = r0Energy;
+energyFill.style.width =
+    `${r0Energy}%`;
+const minutes =
+    Math.floor(levelTimeRemaining / 60);
+
+const seconds =
+    levelTimeRemaining % 60;
+
+timerDisplay.textContent =
+    `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+const gameOverScreen =
+    document.getElementById("game-over");
+
+const gameOverTitle =
+    document.getElementById("game-over-title");
+
+const gameOverMessage =
+    document.getElementById("game-over-message");
+const restartButton =
+    document.getElementById("restart-button");
+restartButton.addEventListener(
+    "click",
+    () => {
+        window.location.reload();
+    }
+);
+
+
 const nextLevelButton =
     document.getElementById("next-level-button");
 
@@ -2560,8 +2697,13 @@ window.addEventListener(
 
         if (key === "f" &&
             !r0Keys.f &&
-            !levelCompleted) {
+            !levelCompleted && !gameOver) {
             playR0Attack();
+            setTimeout(() => {
+
+                createEnergyPulse();
+
+            }, 2000);
             r0Keys.f = true;
         }
 
@@ -2575,7 +2717,10 @@ window.addEventListener(
 
                 if (
                     distance < 2 &&
-                    !generator.userData.activated
+                    !generator.userData.activated &&
+                    !generator.userData.blocked &&
+                    generator.name ===
+                    `Generator_${activatedGenerators + 1}`
                 ) {
 
                     generator.userData.activated = true;
@@ -2621,6 +2766,21 @@ window.addEventListener(
                     generator.add(indicatorLight);
 
                     activatedGenerators++;
+                    // Mostrar confirmación de activación
+                    notificationMessage.textContent =
+                        `GENERATOR ${String(activatedGenerators).padStart(2, "0")} // ONLINE`;
+
+                    systemNotification
+                        .classList
+                        .remove("hidden");
+
+                    setTimeout(() => {
+
+                        systemNotification
+                            .classList
+                            .add("hidden");
+
+                    }, 2500);
 
                     document.getElementById("objectives").textContent =
                         `${activatedGenerators} / 3`;
@@ -2722,7 +2882,101 @@ function playR0Attack() {
 
     currentR0Action = attackAction;
 }
+function createEnergyPulse() {
 
+    if (!r0) {
+        return;
+    }
+
+    const pulseGeometry =
+        new THREE.SphereGeometry(
+            0.18,
+            16,
+            16
+        );
+
+    const pulseMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x00d9ff,
+            transparent: true,
+            opacity: 0.85,
+            toneMapped: false
+        });
+
+    pulseMaterial.color.multiplyScalar(2);
+
+    const pulse =
+        new THREE.Mesh(
+            pulseGeometry,
+            pulseMaterial
+        );
+    // Halo exterior del pulso
+    const glowGeometry =
+        new THREE.SphereGeometry(
+            0.34,
+            16,
+            16
+        );
+
+    const glowMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x008cff,
+            transparent: true,
+            opacity: 0.08,
+            toneMapped: false,
+            depthWrite: false
+        });
+
+    const glow =
+        new THREE.Mesh(
+            glowGeometry,
+            glowMaterial
+        );
+
+    pulse.add(glow);
+
+    // Posición inicial del pulso
+    pulse.position.copy(
+        r0.position
+    );
+
+    pulse.position.y += 0.9;
+
+    // Dirección hacia donde está mirando R-0
+    const direction =
+        new THREE.Vector3(
+            Math.sin(r0.rotation.y),
+            0,
+            Math.cos(r0.rotation.y)
+        );
+    const rightDirection =
+        new THREE.Vector3(
+            Math.cos(r0.rotation.y),
+            0,
+            -Math.sin(r0.rotation.y)
+        );
+
+    // Colocarlo ligeramente delante de R-0
+    pulse.position.addScaledVector(
+        direction,
+        1.4
+    );
+    pulse.position.addScaledVector(
+        rightDirection,
+        -0.20
+    );
+
+    scene.add(pulse);
+
+    energyPulses.push({
+        mesh: pulse,
+        direction: direction,
+        speed: 12,
+        distanceTraveled: 0,
+        radius: 0.25,
+        hasHit: false
+    });
+}
 
 /* ===============================
    RESPONSIVE
@@ -2755,13 +3009,107 @@ function animate() {
 
     requestAnimationFrame(animate);
 
+
+
     const delta = clock.getDelta();
+    if (
+        !levelCompleted &&
+        !gameOver
+    ) {
+        timerAccumulator += delta;
+
+        if (timerAccumulator >= 1) {
+            timerAccumulator -= 1;
+
+            levelTimeRemaining--;
+            if (levelTimeRemaining <= 0) {
+                levelTimeRemaining = 0;
+                gameOver = true;
+
+                gameOverTitle.textContent =
+                    "TIEMPO AGOTADO";
+
+                gameOverMessage.textContent =
+                    "El protocolo de recuperación no se completó a tiempo.";
+
+                gameOverScreen
+                    .classList
+                    .remove("hidden");
+
+                console.log(
+                    "DERROTA - TIEMPO AGOTADO"
+                );
+            }
+
+            const minutes =
+                Math.floor(levelTimeRemaining / 60);
+
+            const seconds =
+                levelTimeRemaining % 60;
+
+            timerDisplay.textContent =
+                `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        }
+    }
+    if (energyAnomaly) {
+        energyAnomaly.rotation.y += 0.6 * delta;
+    }
+    if (energyAnomaly && r0) {
+
+        const distanceToAnomaly =
+            r0.position.distanceTo(
+                energyAnomaly.position
+            );
+
+        if (distanceToAnomaly < 2.5) {
+
+            const currentTime =
+                performance.now();
+
+            if (
+                currentTime -
+                lastAnomalyDamageTime >= 1000
+            ) {
+                r0Energy -= 10;
+
+                if (r0Energy < 0) {
+                    r0Energy = 0;
+                }
+                if (
+                    r0Energy === 0 &&
+                    !gameOver
+                ) {
+                    gameOver = true;
+                    gameOverScreen.classList.remove("hidden");
+
+                    console.log(
+                        "DERROTA - ENERGÍA DE R-0 AGOTADA"
+                    );
+                }
+
+                energyDisplay.textContent =
+                    r0Energy;
+
+                energyFill.style.width =
+                    `${r0Energy}%`;
+
+                lastAnomalyDamageTime =
+                    currentTime;
+
+                console.log(
+                    "DAÑO DE ANOMALÍA:",
+                    r0Energy
+                );
+            }
+        }
+    }
 
     if (r0Mixer) {
         r0Mixer.update(delta);
     }
 
-    if (r0 && !levelCompleted) {
+    if (r0 && !levelCompleted &&
+        !gameOver) {
 
         r0MoveDirection.set(0, 0, 0);
 
@@ -2852,6 +3200,160 @@ function animate() {
     if (physicsWorld) {
         physicsWorld.step();
     }
+
+    // ===============================
+    // MOVIMIENTO DE PULSOS DE ENERGÍA
+    // ===============================
+
+    for (let i = energyPulses.length - 1; i >= 0; i--) {
+
+        const pulse = energyPulses[i];
+
+        const movement =
+            pulse.speed * delta;
+
+        // Detectar impacto del pulso con cajas
+        const crateRaycaster =
+            new THREE.Raycaster(
+                pulse.mesh.position,
+                pulse.direction,
+                0,
+                movement + pulse.radius
+            );
+
+        // Detectar impacto con la anomalía
+        if (
+            energyAnomaly &&
+            energyAnomalyHealth > 0 &&
+            !pulse.hasHit
+        ) {
+            const anomalyIntersections =
+                crateRaycaster.intersectObject(
+                    energyAnomaly,
+                    true
+                );
+
+            if (anomalyIntersections.length > 0) {
+                pulse.hasHit = true;
+                energyAnomalyHealth--;
+
+                console.log(
+                    "VIDA ANOMALÍA:",
+                    energyAnomalyHealth
+                );
+
+                if (energyAnomalyHealth <= 0) {
+
+                    const anomalyToDestroy = energyAnomaly;
+
+                    setTimeout(() => {
+
+                        scene.remove(anomalyToDestroy);
+
+                        if (energyAnomaly === anomalyToDestroy) {
+                            energyAnomaly = null;
+                            const generator3 =
+                                generators.find(
+                                    generator =>
+                                        generator.name === "Generator_3"
+                                );
+
+                            if (generator3) {
+                                generator3.userData.blocked = false;
+                            }
+                        }
+
+                        console.log(
+                            "ANOMALÍA DESTRUIDA"
+                        );
+
+                    }, 150);
+                }
+
+                console.log(
+                    "PULSO IMPACTÓ LA ANOMALÍA"
+                );
+            }
+        }
+
+        dynamicCrates.forEach((crate) => {
+
+            const intersections =
+                crateRaycaster.intersectObject(
+                    crate.model,
+                    true
+                );
+
+            if (
+                intersections.length > 0 &&
+                !pulse.hasHit
+            ) {
+
+                pulse.hasHit = true;
+                crate.body.applyImpulse(
+                    {
+                        x: pulse.direction.x * 18,
+                        y: 6,
+                        z: pulse.direction.z * 18
+                    },
+                    true
+                );
+                crate.body.applyTorqueImpulse(
+                    {
+                        x: pulse.direction.z * 8,
+                        y: 0,
+                        z: -pulse.direction.x * 8
+                    },
+                    true
+                );
+
+                console.log(
+                    "PULSO IMPACTÓ UNA CAJA"
+                );
+
+            }
+
+        });
+
+
+
+
+
+
+        pulse.mesh.position.addScaledVector(
+            pulse.direction,
+            movement
+        );
+
+
+        pulse.distanceTraveled += movement;
+        // Detectar impacto con cajas dinámicas
+        const pulseRaycaster =
+            new THREE.Raycaster(
+                pulse.mesh.position,
+                pulse.direction,
+                0,
+                movement + pulse.radius
+            );
+
+
+
+        // Eliminar el pulso después de recorrer 15 unidades
+        if (pulse.distanceTraveled >= 15) {
+
+            scene.remove(
+                pulse.mesh
+            );
+
+            pulse.mesh.geometry.dispose();
+            pulse.mesh.material.dispose();
+
+            energyPulses.splice(
+                i,
+                1
+            );
+        }
+    }
     // ===============================
     // SINCRONIZAR CAJAS CON RAPIER
     // ===============================
@@ -2921,6 +3423,44 @@ function animate() {
             playerPosition.y,
             playerPosition.z
         );
+        // ===============================
+        // INDICADOR DE INTERACCIÓN
+        // ===============================
+
+        let generatorNearby = false;
+
+        generators.forEach((generator) => {
+
+            const distance =
+                r0.position.distanceTo(
+                    generator.position
+                );
+
+            if (
+                distance < 2 &&
+                !generator.userData.activated &&
+                !generator.userData.blocked &&
+                generator.name ===
+                `Generator_${activatedGenerators + 1}`
+            ) {
+                generatorNearby = true;
+            }
+
+        });
+
+        if (generatorNearby) {
+
+            interactionPrompt
+                .classList
+                .remove("hidden");
+
+        } else {
+
+            interactionPrompt
+                .classList
+                .add("hidden");
+
+        }
 
 
 

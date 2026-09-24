@@ -276,6 +276,14 @@
                     <span class="hud-label">PUNTUACIÓN</span>
                     <span id="score" class="hud-value">0</span>
                 </div>
+                <div class="hud-module">
+                    <span class="hud-number">05</span>
+
+                    <div class="hud-info">
+                        <span class="hud-label">TIEMPO RESTANTE</span>
+                        <span id="timer" class="hud-value">02:00</span>
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -289,6 +297,30 @@
 
             <span class="hud-footer-code">RZ-01</span>
         </div>
+
+    </div>
+
+
+    <!-- Indicador de interacción -->
+    <div id="interaction-prompt" class="hidden">
+        <span class="interaction-key">E</span>
+
+        <div class="interaction-text">
+            <small>INTERACTUAR</small>
+            <strong>ACTIVAR GENERADOR</strong>
+        </div>
+    </div>
+
+    <!-- Notificación del sistema -->
+    <div id="system-notification" class="hidden">
+
+        <span class="notification-label">
+            SYSTEM UPDATE
+        </span>
+
+        <strong id="notification-message">
+            GENERATOR 01 // ONLINE
+        </strong>
 
     </div>
     <!-- Nivel completado -->
@@ -377,6 +409,7 @@
                     <p>
                         Los generadores de la fábrica están operativos.
                         El suministro energético del sector ha sido restaurado.
+                        Acceso al laboratorio habilitado.
                     </p>
                 </div>
 
@@ -392,7 +425,7 @@
 
                 <button id="next-level-button" class="complete-button">
                     <span>▶</span>
-                    CONTINUAR PROTOCOLO
+                    ACCEDER AL SIGUIENTE
                 </button>
 
             </div>
@@ -405,6 +438,30 @@
 
         </div>
 
+    </div>
+    <div id="game-over" class="hidden">
+        <div class="game-over-panel">
+
+            <span class="game-over-label">
+                SYSTEM FAILURE
+            </span>
+
+            <h2 id="game-over-title">
+                ENERGÍA AGOTADA
+            </h2>
+
+            <p id="game-over-message">
+                La unidad R-0 ha perdido toda la energía.
+            </p>
+
+            <span class="game-over-code">
+                MISSION STATUS // FAILED
+            </span>
+            <button id="restart-button">
+                ↻ REINICIAR MISIÓN
+            </button>
+
+        </div>
     </div>
 
     <script type="module" src="./assets/js/main.js"></script>
