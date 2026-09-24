@@ -1,0 +1,11 @@
+Model Information:
+* title:	Sci-Fi Energy Orb
+* source:	https://sketchfab.com/3d-models/sci-fi-energy-orb-eaaf2a000a5a4b8a9219a1de1c900e61
+* author:	Bim44 (https://sketchfab.com/Bim44)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sci-Fi Energy Orb" (https://sketchfab.com/3d-models/sci-fi-energy-orb-eaaf2a000a5a4b8a9219a1de1c900e61) by Bim44 (https://sketchfab.com/Bim44) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
