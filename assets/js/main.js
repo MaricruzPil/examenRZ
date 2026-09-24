@@ -28,6 +28,7 @@ let frontDoorFillersGroup = null;
 let frontEntranceBarrierCreated = false;
 let currentR0Action = null;
 let isR0Attacking = false;
+let pendingAttackPulseTimeout = null;
 const generators = [];
 let activatedGenerators = 0;
 let levelCompleted = false;
@@ -38,6 +39,12 @@ let energyAnomalyHealth = 3;
 let currentLevel = 1;
 const unstableCores = [];
 let destroyedUnstableCores = 0;
+const reactorSupports = [];
+let destroyedReactorSupports = 0;
+const LEVEL3_ESCAPE_TIME = 30;
+let level3EscapeActive = false;
+let level3EscapeTimeRemaining = LEVEL3_ESCAPE_TIME;
+let level3ExitZone = null;
 let r0Energy = 100;
 let lastAnomalyDamageTime = 0;
 let gameOver = false;
@@ -2693,6 +2700,8 @@ nextLevelButton.addEventListener(
             loadLevel2();
         } else if (currentLevel === 2) {
             loadLevel3();
+        } else if (currentLevel === 3 && levelCompleted) {
+            window.location.reload();
         }
 
     }
@@ -2723,6 +2732,8 @@ function updateTimerHud() {
 }
 
 function resetLevelState() {
+
+    cancelPendingAttackPulse();
 
     levelCompleted = false;
     gameOver = false;
@@ -2784,7 +2795,36 @@ function clearActivePulses() {
     }
 }
 
+function cancelPendingAttackPulse() {
+
+    if (pendingAttackPulseTimeout !== null) {
+        clearTimeout(pendingAttackPulseTimeout);
+        pendingAttackPulseTimeout = null;
+    }
+}
+
+function scheduleAttackPulse() {
+
+    cancelPendingAttackPulse();
+
+    pendingAttackPulseTimeout = setTimeout(() => {
+
+        pendingAttackPulseTimeout = null;
+
+        if (
+            !levelCompleted &&
+            !gameOver &&
+            r0
+        ) {
+            createEnergyPulse();
+        }
+
+    }, 2000);
+}
+
 function clearLevelMissionObjects() {
+
+    cancelPendingAttackPulse();
 
     generators.forEach((generator) => {
 
@@ -2806,12 +2846,12 @@ function clearLevelMissionObjects() {
         energyAnomaly = null;
     }
 
-    unstableCores.forEach((core) => {
-        disposeObject3D(core);
-        scene.remove(core);
-    });
+    for (let i = unstableCores.length - 1; i >= 0; i--) {
+        removeUnstableCore(i);
+    }
 
-    unstableCores.length = 0;
+
+    clearLevel3Objects();
 }
 
 function disposeObject3D(object) {
@@ -2931,6 +2971,37 @@ function createLevel2Cores() {
     });
 }
 
+function removeUnstableCore(indexOrCore) {
+
+    const core =
+        typeof indexOrCore === "number"
+            ? unstableCores[indexOrCore]
+            : indexOrCore;
+
+    if (!core) {
+        return;
+    }
+
+    if (core.userData.removed) {
+        return;
+    }
+
+    core.userData.removed = true;
+
+    scene.remove(core);
+    disposeObject3D(core);
+
+    const coreIndex =
+        unstableCores.indexOf(core);
+
+    if (coreIndex !== -1) {
+        unstableCores.splice(
+            coreIndex,
+            1
+        );
+    }
+}
+
 function updateLevel2Hud() {
 
     document.getElementById("level").textContent = "2";
@@ -2939,6 +3010,8 @@ function updateLevel2Hud() {
 }
 
 function prepareLevel1CompleteScreen() {
+
+    cancelPendingAttackPulse();
 
     const levelComplete =
         document.getElementById("level-complete");
@@ -2966,6 +3039,8 @@ function prepareLevel1CompleteScreen() {
 }
 
 function showLevel2Complete() {
+
+    cancelPendingAttackPulse();
 
     levelCompleted = true;
 
@@ -3043,11 +3118,411 @@ function loadLevel2() {
     });
 }
 
+function createReactorSupport(position, index) {
+
+    const supportGroup = new THREE.Group();
+
+    const baseMaterial =
+        new THREE.MeshStandardMaterial({
+            color: 0x1e4f66,
+            emissive: 0x003344,
+            emissiveIntensity: 0.8,
+            roughness: 0.35,
+            metalness: 0.55
+        });
+
+    const coreMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x00e5ff,
+            transparent: true,
+            opacity: 0.85,
+            toneMapped: false
+        });
+
+    const pillar =
+        new THREE.Mesh(
+            new THREE.CylinderGeometry(
+                0.45,
+                0.65,
+                2.6,
+                12
+            ),
+            baseMaterial
+        );
+
+    pillar.position.y = 1.3;
+    pillar.castShadow = true;
+    pillar.receiveShadow = true;
+
+    const core =
+        new THREE.Mesh(
+            new THREE.SphereGeometry(
+                0.34,
+                16,
+                16
+            ),
+            coreMaterial
+        );
+
+    core.position.y = 2.65;
+
+    const ring =
+        new THREE.Mesh(
+            new THREE.TorusGeometry(
+                0.72,
+                0.04,
+                8,
+                32
+            ),
+            coreMaterial.clone()
+        );
+
+    ring.position.y = 1.65;
+    ring.rotation.x = Math.PI / 2;
+
+    const light =
+        new THREE.PointLight(
+            0x00e5ff,
+            1.4,
+            5
+        );
+
+    light.position.y = 2.3;
+
+    supportGroup.add(pillar);
+    supportGroup.add(core);
+    supportGroup.add(ring);
+    supportGroup.add(light);
+
+    supportGroup.position.set(
+        position.x,
+        position.y,
+        position.z
+    );
+
+    supportGroup.name =
+        `Reactor_Support_${index + 1}`;
+
+    supportGroup.userData.health = 3;
+    supportGroup.userData.destroyed = false;
+    supportGroup.userData.coreMesh = core;
+
+    scene.add(supportGroup);
+    reactorSupports.push(supportGroup);
+}
+
+function createReactorSupports() {
+
+    destroyedReactorSupports = 0;
+
+    const supportPositions = [
+        { x: -8, y: 0.05, z: -5 },
+        { x: 8, y: 0.05, z: -5 },
+        { x: 0, y: 0.05, z: 4 }
+    ];
+
+    supportPositions.forEach((position, index) => {
+        createReactorSupport(position, index);
+    });
+}
+
+function updateLevel3Hud() {
+
+    document.getElementById("level").textContent = "3";
+    document.getElementById("objectives").textContent =
+        `${destroyedReactorSupports} / 3`;
+}
+
+function updateLevel3EscapeHud() {
+
+    document.getElementById("level").textContent = "3";
+    document.getElementById("objectives").textContent =
+        "ESCAPA DEL REACTOR";
+    timerDisplay.textContent =
+        formatTimer(
+            Math.ceil(level3EscapeTimeRemaining)
+        );
+}
+
+function createLevel3Exit() {
+
+    const exitGroup =
+        new THREE.Group();
+
+    const markerMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x00ffcc,
+            transparent: true,
+            opacity: 0.35,
+            toneMapped: false,
+            depthWrite: false
+        });
+
+    const marker =
+        new THREE.Mesh(
+            new THREE.CylinderGeometry(
+                1.6,
+                1.6,
+                0.08,
+                32
+            ),
+            markerMaterial
+        );
+
+    marker.position.y = 0.08;
+
+    const gateMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x00d9ff,
+            transparent: true,
+            opacity: 0.55,
+            toneMapped: false
+        });
+
+    const gate =
+        new THREE.Mesh(
+            new THREE.TorusGeometry(
+                1.15,
+                0.08,
+                12,
+                40
+            ),
+            gateMaterial
+        );
+
+    gate.position.y = 1.35;
+
+    const light =
+        new THREE.PointLight(
+            0x00ffcc,
+            2,
+            8
+        );
+
+    light.position.y = 1.4;
+
+    exitGroup.add(marker);
+    exitGroup.add(gate);
+    exitGroup.add(light);
+
+    exitGroup.position.set(
+        0,
+        0,
+        10
+    );
+
+    exitGroup.visible = false;
+    exitGroup.userData.radius = 1.7;
+
+    scene.add(exitGroup);
+    level3ExitZone = exitGroup;
+}
+
+function startLevel3Escape() {
+
+    level3EscapeActive = true;
+    level3EscapeTimeRemaining =
+        LEVEL3_ESCAPE_TIME;
+
+    if (!level3ExitZone) {
+        createLevel3Exit();
+    }
+
+    level3ExitZone.visible = true;
+    updateLevel3EscapeHud();
+
+    notificationMessage.textContent =
+        "REACTOR ESCAPE PHASE // EVACUATE";
+
+    systemNotification
+        .classList
+        .remove("hidden");
+
+    setTimeout(() => {
+
+        systemNotification
+            .classList
+            .add("hidden");
+
+    }, 2500);
+}
+
+function checkLevel3Exit() {
+
+    if (
+        !level3EscapeActive ||
+        !level3ExitZone ||
+        !r0
+    ) {
+        return;
+    }
+
+    const exitPosition =
+        level3ExitZone.position;
+
+    const horizontalDistance =
+        Math.hypot(
+            r0.position.x - exitPosition.x,
+            r0.position.z - exitPosition.z
+        );
+
+    if (horizontalDistance <= level3ExitZone.userData.radius) {
+        showFinalVictory();
+    }
+}
+
+function updateLevel3Escape(delta) {
+
+    if (
+        currentLevel !== 3 ||
+        !level3EscapeActive ||
+        gameOver ||
+        levelCompleted
+    ) {
+        return;
+    }
+
+    level3EscapeTimeRemaining -= delta;
+
+    if (level3ExitZone) {
+        level3ExitZone.rotation.y += 1.6 * delta;
+    }
+
+    if (level3EscapeTimeRemaining <= 0) {
+        level3EscapeTimeRemaining = 0;
+        updateLevel3EscapeHud();
+        gameOver = true;
+        cancelPendingAttackPulse();
+        level3EscapeActive = false;
+
+        gameOverTitle.textContent =
+            "TIEMPO AGOTADO";
+
+        gameOverMessage.textContent =
+            "R-0 no logró evacuar Reactor Zero antes del colapso.";
+
+        gameOverScreen
+            .classList
+            .remove("hidden");
+
+        console.log(
+            "DERROTA - ESCAPE FALLIDO"
+        );
+
+        return;
+    }
+
+    updateLevel3EscapeHud();
+    checkLevel3Exit();
+}
+
+function showFinalVictory() {
+
+    cancelPendingAttackPulse();
+
+    levelCompleted = true;
+    level3EscapeActive = false;
+
+    const levelComplete =
+        document.getElementById("level-complete");
+    const recoveryRows =
+        levelComplete.querySelectorAll(".recovery-row");
+
+    levelComplete.querySelector(".complete-id").textContent =
+        "RZ-03";
+    levelComplete.querySelector(".complete-status").lastChild.textContent =
+        " MISSION COMPLETE";
+    levelComplete.querySelector(".complete-header h2").innerHTML =
+        "REACTOR ZERO <span>ESTABILIZADO</span>";
+    levelComplete.querySelector(".complete-subtitle").textContent =
+        "SYSTEM REPORT // MISSION COMPLETE";
+    levelComplete.querySelector(".recovery-title span:last-child").textContent =
+        "03 / 03";
+
+    recoveryRows.forEach((row, index) => {
+
+        const label =
+            row.querySelector("span:first-child");
+        const status =
+            row.querySelector(".recovery-online");
+
+        if (label && index === 0) {
+            label.textContent =
+                "SOPORTES DEL REACTOR";
+        } else if (label && index === 1) {
+            label.textContent =
+                "EVACUACIÓN";
+        } else if (label) {
+            label.textContent =
+                "REACTOR ZERO";
+        }
+
+        if (status) {
+            status.lastChild.textContent =
+                index === 1
+                    ? " COMPLETADA"
+                    : " STABLE";
+        }
+
+    });
+
+    levelComplete.querySelector(".complete-objective-number").innerHTML =
+        "03 <small>/03</small>";
+    levelComplete.querySelector(".complete-objective p").textContent =
+        "R-0 logró evacuar la instalación antes del colapso. Reactor Zero ha sido estabilizado.";
+    levelComplete.querySelector(".complete-footer span:first-child").textContent =
+        "MISSION COMPLETE";
+    levelComplete.querySelector(".complete-footer span:last-child").textContent =
+        "REACTOR ZERO STABILIZED";
+    nextLevelButton.innerHTML =
+        "<span>↻</span> REINICIAR MISIÓN";
+
+    levelComplete
+        .classList
+        .remove("hidden");
+}
+
+function clearLevel3Objects() {
+
+    reactorSupports.forEach((support) => {
+        scene.remove(support);
+        disposeObject3D(support);
+    });
+
+    reactorSupports.length = 0;
+    destroyedReactorSupports = 0;
+    level3EscapeActive = false;
+    level3EscapeTimeRemaining =
+        LEVEL3_ESCAPE_TIME;
+
+    if (level3ExitZone) {
+        scene.remove(level3ExitZone);
+        disposeObject3D(level3ExitZone);
+        level3ExitZone = null;
+    }
+}
+
 function loadLevel3() {
 
     console.log(
-        "loadLevel3() pendiente de implementar"
+        "Iniciando Nivel 3 - Reactor Zero"
     );
+
+    currentLevel = 3;
+
+    clearActivePulses();
+    clearLevelMissionObjects();
+    resetLevelState();
+    levelTimeRemaining = 180;
+    updateTimerHud();
+    createReactorSupports();
+    createLevel3Exit();
+    updateLevel3Hud();
+    moveR0ToStart({
+        x: 0,
+        y: 0.05,
+        z: -8
+    });
 }
 
 window.addEventListener(
@@ -3056,15 +3531,15 @@ window.addEventListener(
 
         const key = event.key.toLowerCase();
 
-        if (key === "f" &&
-            !r0Keys.f &&
-            !levelCompleted && !gameOver) {
-            playR0Attack();
-            setTimeout(() => {
-
-                createEnergyPulse();
-
-            }, 2000);
+        if (
+            key === "f" &&
+            !event.repeat &&
+            !levelCompleted &&
+            !gameOver
+        ) {
+            if (playR0Attack()) {
+                scheduleAttackPulse();
+            }
             r0Keys.f = true;
         }
 
@@ -3227,22 +3702,29 @@ function playR0Attack() {
 
     const attackAction = r0Actions.attack;
 
-    if (!attackAction || isR0Attacking) {
-        return;
+    if (!attackAction) {
+        return false;
     }
 
     isR0Attacking = true;
 
-    if (currentR0Action) {
+    if (
+        currentR0Action &&
+        currentR0Action !== attackAction
+    ) {
         currentR0Action.fadeOut(0.2);
     }
 
     attackAction
+        .stop()
         .reset()
-        .fadeIn(0.2)
+        .setEffectiveWeight(1)
+        .setEffectiveTimeScale(1)
         .play();
 
     currentR0Action = attackAction;
+
+    return true;
 }
 function createEnergyPulse() {
 
@@ -3520,6 +4002,26 @@ function findClosestPulseHit(raycaster) {
         });
     }
 
+    if (currentLevel === 3) {
+        reactorSupports.forEach((support) => {
+
+            if (support.userData.destroyed) {
+                return;
+            }
+
+            addClosestPulseHit(
+                hits,
+                raycaster.intersectObject(
+                    support,
+                    true
+                ),
+                "support",
+                support
+            );
+
+        });
+    }
+
     dynamicCrates.forEach((crate) => {
 
         addClosestPulseHit(
@@ -3638,8 +4140,7 @@ function applyPulseImpact(hit, pulse) {
 
             setTimeout(() => {
 
-                scene.remove(core);
-                disposeObject3D(core);
+                removeUnstableCore(core);
 
             }, 150);
 
@@ -3679,6 +4180,55 @@ function applyPulseImpact(hit, pulse) {
 
         console.log(
             "PULSO IMPACTÓ UNA CAJA"
+        );
+
+        return;
+    }
+
+    if (hit.type === "support") {
+
+        const support =
+            hit.target;
+
+        support.userData.health--;
+
+        const coreMesh =
+            support.userData.coreMesh;
+
+        if (coreMesh && coreMesh.material) {
+            coreMesh.material.opacity =
+                Math.max(
+                    0.25,
+                    support.userData.health * 0.28
+                );
+        }
+
+        console.log(
+            `${support.name} VIDA:`,
+            support.userData.health
+        );
+
+        if (support.userData.health <= 0) {
+
+            support.userData.destroyed = true;
+            destroyedReactorSupports++;
+
+            updateLevel3Hud();
+
+            setTimeout(() => {
+
+                scene.remove(support);
+                disposeObject3D(support);
+
+            }, 150);
+
+            if (destroyedReactorSupports === 3) {
+                startLevel3Escape();
+            }
+        }
+
+        console.log(
+            "PULSO IMPACTÓ UN SOPORTE DEL REACTOR"
         );
 
         return;
@@ -3748,7 +4298,11 @@ function animate() {
     const delta = clock.getDelta();
     if (
         !levelCompleted &&
-        !gameOver
+        !gameOver &&
+        !(
+            currentLevel === 3 &&
+            level3EscapeActive
+        )
     ) {
         timerAccumulator += delta;
 
@@ -3759,6 +4313,7 @@ function animate() {
             if (levelTimeRemaining <= 0) {
                 levelTimeRemaining = 0;
                 gameOver = true;
+                cancelPendingAttackPulse();
 
                 gameOverTitle.textContent =
                     "TIEMPO AGOTADO";
@@ -3800,6 +4355,18 @@ function animate() {
         });
     }
 
+    if (currentLevel === 3) {
+        reactorSupports.forEach((support) => {
+
+            if (!support.userData.destroyed) {
+                support.rotation.y += 0.45 * delta;
+            }
+
+        });
+    }
+
+    updateLevel3Escape(delta);
+
     if (energyAnomaly && r0 && currentLevel === 1) {
 
         const distanceToAnomaly =
@@ -3826,6 +4393,7 @@ function animate() {
                     !gameOver
                 ) {
                     gameOver = true;
+                    cancelPendingAttackPulse();
                     gameOverScreen.classList.remove("hidden");
 
                     console.log(
@@ -3848,6 +4416,29 @@ function animate() {
                 );
             }
         }
+    }
+
+    if (
+        r0Energy <= 0 &&
+        !gameOver &&
+        !levelCompleted
+    ) {
+        gameOver = true;
+        cancelPendingAttackPulse();
+
+        gameOverTitle.textContent =
+            "ENERGÍA AGOTADA";
+
+        gameOverMessage.textContent =
+            "La unidad R-0 ha perdido toda la energía.";
+
+        gameOverScreen
+            .classList
+            .remove("hidden");
+
+        console.log(
+            "DERROTA - ENERGÍA DE R-0 AGOTADA"
+        );
     }
 
     if (r0Mixer) {
