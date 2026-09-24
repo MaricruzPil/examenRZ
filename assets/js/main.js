@@ -32,8 +32,12 @@ const generators = [];
 let activatedGenerators = 0;
 let levelCompleted = false;
 const energyPulses = [];
+const pulseImpactEffects = [];
 let energyAnomaly = null;
 let energyAnomalyHealth = 3;
+let currentLevel = 1;
+const unstableCores = [];
+let destroyedUnstableCores = 0;
 let r0Energy = 100;
 let lastAnomalyDamageTime = 0;
 let gameOver = false;
@@ -1544,6 +1548,9 @@ loader.load(
                 ),
                 generatorBody
             );
+
+            generator.userData.body =
+                generatorBody;
         });
 
         console.log(
@@ -2682,12 +2689,366 @@ nextLevelButton.addEventListener(
     "click",
     () => {
 
-        console.log(
-            "Preparando Nivel 2 - Laboratorio"
-        );
+        if (currentLevel === 1) {
+            loadLevel2();
+        } else if (currentLevel === 2) {
+            loadLevel3();
+        }
 
     }
 );
+
+function formatTimer(secondsRemaining) {
+
+    const minutes =
+        Math.floor(secondsRemaining / 60);
+
+    const seconds =
+        secondsRemaining % 60;
+
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function updateEnergyHud() {
+
+    energyDisplay.textContent = r0Energy;
+    energyFill.style.width =
+        `${r0Energy}%`;
+}
+
+function updateTimerHud() {
+
+    timerDisplay.textContent =
+        formatTimer(levelTimeRemaining);
+}
+
+function resetLevelState() {
+
+    levelCompleted = false;
+    gameOver = false;
+    timerAccumulator = 0;
+    levelTimeRemaining = LEVEL_TIME_LIMIT;
+    r0Energy = 100;
+    lastAnomalyDamageTime = 0;
+    isR0Attacking = false;
+
+    updateEnergyHud();
+    updateTimerHud();
+
+    gameOverScreen
+        .classList
+        .add("hidden");
+
+    document
+        .getElementById("level-complete")
+        .classList
+        .add("hidden");
+
+    interactionPrompt
+        .classList
+        .add("hidden");
+
+    systemNotification
+        .classList
+        .add("hidden");
+}
+
+function moveR0ToStart(position) {
+
+    if (playerBody) {
+        playerBody.setNextKinematicTranslation(position);
+        playerBody.setTranslation(position, true);
+    }
+
+    if (r0) {
+        r0.position.set(
+            position.x,
+            position.y,
+            position.z
+        );
+
+        r0.rotation.y = 0;
+    }
+
+    controls.target.set(
+        position.x,
+        position.y + 1.5,
+        position.z
+    );
+}
+
+function clearActivePulses() {
+
+    for (let i = energyPulses.length - 1; i >= 0; i--) {
+        removeEnergyPulse(i);
+    }
+}
+
+function clearLevelMissionObjects() {
+
+    generators.forEach((generator) => {
+
+        generator.visible = false;
+        generator.userData.activated = true;
+        generator.userData.blocked = true;
+
+        if (generator.userData.body) {
+            physicsWorld.removeRigidBody(
+                generator.userData.body
+            );
+            generator.userData.body = null;
+        }
+
+    });
+
+    if (energyAnomaly) {
+        scene.remove(energyAnomaly);
+        energyAnomaly = null;
+    }
+
+    unstableCores.forEach((core) => {
+        disposeObject3D(core);
+        scene.remove(core);
+    });
+
+    unstableCores.length = 0;
+}
+
+function disposeObject3D(object) {
+
+    object.traverse((child) => {
+
+        if (child.geometry) {
+            child.geometry.dispose();
+        }
+
+        if (child.material) {
+            if (Array.isArray(child.material)) {
+                child.material.forEach((material) => {
+                    material.dispose();
+                });
+            } else {
+                child.material.dispose();
+            }
+        }
+
+    });
+}
+
+function createUnstableCore(position, index) {
+
+    const coreGroup = new THREE.Group();
+
+    const coreGeometry =
+        new THREE.IcosahedronGeometry(
+            0.55,
+            1
+        );
+
+    const coreMaterial =
+        new THREE.MeshStandardMaterial({
+            color: 0x00d9ff,
+            emissive: 0x0066ff,
+            emissiveIntensity: 1.8,
+            roughness: 0.25,
+            metalness: 0.35
+        });
+
+    const coreMesh =
+        new THREE.Mesh(
+            coreGeometry,
+            coreMaterial
+        );
+
+    coreMesh.castShadow = true;
+
+    const ringGeometry =
+        new THREE.TorusGeometry(
+            0.82,
+            0.035,
+            8,
+            32
+        );
+
+    const ringMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.7,
+            toneMapped: false
+        });
+
+    const ring =
+        new THREE.Mesh(
+            ringGeometry,
+            ringMaterial
+        );
+
+    ring.rotation.x = Math.PI / 2;
+
+    const coreLight =
+        new THREE.PointLight(
+            0x00d9ff,
+            1.5,
+            5
+        );
+
+    coreGroup.add(coreMesh);
+    coreGroup.add(ring);
+    coreGroup.add(coreLight);
+
+    coreGroup.position.set(
+        position.x,
+        position.y,
+        position.z
+    );
+
+    coreGroup.name =
+        `Unstable_Core_${index + 1}`;
+
+    coreGroup.userData.health = 3;
+    coreGroup.userData.destroyed = false;
+    coreGroup.userData.coreMesh = coreMesh;
+
+    scene.add(coreGroup);
+    unstableCores.push(coreGroup);
+}
+
+function createLevel2Cores() {
+
+    destroyedUnstableCores = 0;
+
+    const corePositions = [
+        { x: -9, y: 1.05, z: -6 },
+        { x: 9, y: 1.05, z: -6 },
+        { x: -7, y: 1.05, z: 4 },
+        { x: 7, y: 1.05, z: 4 },
+        { x: 0, y: 1.05, z: -1 }
+    ];
+
+    corePositions.forEach((position, index) => {
+        createUnstableCore(position, index);
+    });
+}
+
+function updateLevel2Hud() {
+
+    document.getElementById("level").textContent = "2";
+    document.getElementById("objectives").textContent =
+        `${destroyedUnstableCores} / 5`;
+}
+
+function prepareLevel1CompleteScreen() {
+
+    const levelComplete =
+        document.getElementById("level-complete");
+
+    levelComplete.querySelector(".complete-id").textContent =
+        "FAC-01";
+    levelComplete.querySelector(".complete-status").lastChild.textContent =
+        " POWER GRID RESTORED";
+    levelComplete.querySelector(".complete-header h2").innerHTML =
+        "ENERGÍA <span>RESTAURADA</span>";
+    levelComplete.querySelector(".complete-subtitle").textContent =
+        "SYSTEM REPORT // LEVEL 01";
+    levelComplete.querySelector(".recovery-title span:last-child").textContent =
+        "03 / 03";
+    levelComplete.querySelector(".complete-objective-number").innerHTML =
+        "03 <small>/03</small>";
+    levelComplete.querySelector(".complete-objective p").textContent =
+        "Los generadores de la fábrica están operativos. El suministro energético del sector ha sido restaurado. Acceso al laboratorio habilitado.";
+    levelComplete.querySelector(".complete-footer span:first-child").textContent =
+        "LEVEL 01 // FACTORY";
+    levelComplete.querySelector(".complete-footer span:last-child").textContent =
+        "RECOVERY CONFIRMED";
+    nextLevelButton.innerHTML =
+        "<span>â–¶</span> ACCEDER AL LABORATORIO";
+}
+
+function showLevel2Complete() {
+
+    levelCompleted = true;
+
+    const levelComplete =
+        document.getElementById("level-complete");
+    const recoveryRows =
+        levelComplete.querySelectorAll(".recovery-row");
+
+    levelComplete.querySelector(".complete-id").textContent =
+        "LAB-02";
+    levelComplete.querySelector(".complete-status").lastChild.textContent =
+        " LABORATORY STABILIZED";
+    levelComplete.querySelector(".complete-header h2").innerHTML =
+        "LABORATORIO <span>ESTABILIZADO</span>";
+    levelComplete.querySelector(".complete-subtitle").textContent =
+        "SYSTEM REPORT // LEVEL 02";
+    levelComplete.querySelector(".recovery-title span:last-child").textContent =
+        "05 / 05";
+
+    recoveryRows.forEach((row, index) => {
+
+        const label =
+            row.querySelector("span:first-child");
+
+        const status =
+            row.querySelector(".recovery-online");
+
+        if (index < 5 && label) {
+            label.textContent =
+                `UNSTABLE CORE ${String(index + 1).padStart(2, "0")}`;
+        }
+
+        if (status) {
+            status.lastChild.textContent =
+                " STABILIZED";
+        }
+
+    });
+
+    levelComplete.querySelector(".complete-objective-number").innerHTML =
+        "05 <small>/05</small>";
+    levelComplete.querySelector(".complete-objective p").textContent =
+        "Los núcleos inestables del laboratorio han sido destruidos. El sector ha quedado estabilizado. Siguiente sector: REACTOR ZERO.";
+    levelComplete.querySelector(".complete-footer span:first-child").textContent =
+        "LEVEL 02 // LABORATORY";
+    levelComplete.querySelector(".complete-footer span:last-child").textContent =
+        "NEXT SECTOR // REACTOR ZERO";
+    nextLevelButton.innerHTML =
+        "<span>â–¶</span> ACCEDER A REACTOR ZERO";
+
+    levelComplete
+        .classList
+        .remove("hidden");
+}
+
+function loadLevel2() {
+
+    console.log(
+        "Iniciando Nivel 2 - Laboratorio"
+    );
+
+    currentLevel = 2;
+
+    clearActivePulses();
+    clearLevelMissionObjects();
+    resetLevelState();
+    levelTimeRemaining = 180;
+    updateTimerHud();
+    createLevel2Cores();
+    updateLevel2Hud();
+    moveR0ToStart({
+        x: 0,
+        y: 0.05,
+        z: 8
+    });
+}
+
+function loadLevel3() {
+
+    console.log(
+        "loadLevel3() pendiente de implementar"
+    );
+}
 
 window.addEventListener(
     "keydown",
@@ -2708,7 +3069,7 @@ window.addEventListener(
         }
 
 
-        if (key === "e" && r0) {
+        if (key === "e" && r0 && currentLevel === 1) {
 
             generators.forEach((generator) => {
 
@@ -2786,6 +3147,7 @@ window.addEventListener(
                         `${activatedGenerators} / 3`;
                     if (activatedGenerators === 3) {
                         levelCompleted = true;
+                        prepareLevel1CompleteScreen();
 
                         console.log(
                             "NIVEL 1 COMPLETADO - ENERGÍA RESTAURADA"
@@ -2978,6 +3340,378 @@ function createEnergyPulse() {
     });
 }
 
+function removeEnergyPulse(index) {
+
+    const pulse = energyPulses[index];
+
+    if (!pulse) {
+        return;
+    }
+
+    scene.remove(pulse.mesh);
+    disposeObject3D(pulse.mesh);
+
+    energyPulses.splice(
+        index,
+        1
+    );
+}
+
+function createPulseImpactEffect(position) {
+
+    const effectGroup =
+        new THREE.Group();
+
+    const flashGeometry =
+        new THREE.SphereGeometry(
+            0.16,
+            12,
+            12
+        );
+
+    const flashMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x00d9ff,
+            transparent: true,
+            opacity: 0.85,
+            toneMapped: false,
+            depthWrite: false
+        });
+
+    const flash =
+        new THREE.Mesh(
+            flashGeometry,
+            flashMaterial
+        );
+
+    const ringGeometry =
+        new THREE.TorusGeometry(
+            0.22,
+            0.025,
+            8,
+            24
+        );
+
+    const ringMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x7df4ff,
+            transparent: true,
+            opacity: 0.75,
+            toneMapped: false,
+            depthWrite: false
+        });
+
+    const ring =
+        new THREE.Mesh(
+            ringGeometry,
+            ringMaterial
+        );
+
+    ring.rotation.x =
+        Math.PI / 2;
+
+    effectGroup.add(flash);
+    effectGroup.add(ring);
+
+    effectGroup.position.copy(position);
+
+    scene.add(effectGroup);
+
+    pulseImpactEffects.push({
+        group: effectGroup,
+        age: 0,
+        duration: 0.25,
+        flashMaterial: flashMaterial,
+        ringMaterial: ringMaterial
+    });
+}
+
+function updatePulseImpactEffects(delta) {
+
+    for (let i = pulseImpactEffects.length - 1; i >= 0; i--) {
+
+        const effect =
+            pulseImpactEffects[i];
+
+        effect.age += delta;
+
+        const progress =
+            Math.min(
+                effect.age / effect.duration,
+                1
+            );
+
+        const scale =
+            1 + progress * 2.4;
+
+        effect.group.scale.set(
+            scale,
+            scale,
+            scale
+        );
+
+        const opacity =
+            1 - progress;
+
+        effect.flashMaterial.opacity =
+            0.85 * opacity;
+        effect.ringMaterial.opacity =
+            0.75 * opacity;
+
+        if (progress >= 1) {
+            scene.remove(effect.group);
+            disposeObject3D(effect.group);
+            pulseImpactEffects.splice(i, 1);
+        }
+    }
+}
+
+function addClosestPulseHit(hits, intersections, type, target) {
+
+    if (intersections.length === 0) {
+        return;
+    }
+
+    hits.push({
+        type: type,
+        target: target,
+        point: intersections[0].point.clone(),
+        distance: intersections[0].distance
+    });
+}
+
+function findClosestPulseHit(raycaster) {
+
+    const hits = [];
+
+    if (
+        energyAnomaly &&
+        currentLevel === 1 &&
+        energyAnomalyHealth > 0
+    ) {
+        addClosestPulseHit(
+            hits,
+            raycaster.intersectObject(
+                energyAnomaly,
+                true
+            ),
+            "anomaly",
+            energyAnomaly
+        );
+    }
+
+    if (currentLevel === 2) {
+        unstableCores.forEach((core) => {
+
+            if (core.userData.destroyed) {
+                return;
+            }
+
+            addClosestPulseHit(
+                hits,
+                raycaster.intersectObject(
+                    core,
+                    true
+                ),
+                "core",
+                core
+            );
+
+        });
+    }
+
+    dynamicCrates.forEach((crate) => {
+
+        addClosestPulseHit(
+            hits,
+            raycaster.intersectObject(
+                crate.model,
+                true
+            ),
+            "crate",
+            crate
+        );
+
+    });
+
+    dynamicBarrels.forEach((barrel) => {
+
+        addClosestPulseHit(
+            hits,
+            raycaster.intersectObject(
+                barrel.model,
+                true
+            ),
+            "barrel",
+            barrel
+        );
+
+    });
+
+    if (hits.length === 0) {
+        return null;
+    }
+
+    hits.sort((a, b) => {
+        return a.distance - b.distance;
+    });
+
+    return hits[0];
+}
+
+function applyPulseImpact(hit, pulse) {
+
+    createPulseImpactEffect(hit.point);
+
+    if (hit.type === "anomaly") {
+        energyAnomalyHealth--;
+
+        console.log(
+            "VIDA ANOMALÍA:",
+            energyAnomalyHealth
+        );
+
+        if (energyAnomalyHealth <= 0) {
+
+            const anomalyToDestroy = energyAnomaly;
+
+            setTimeout(() => {
+
+                scene.remove(anomalyToDestroy);
+
+                if (energyAnomaly === anomalyToDestroy) {
+                    energyAnomaly = null;
+                    const generator3 =
+                        generators.find(
+                            generator =>
+                                generator.name === "Generator_3"
+                        );
+
+                    if (generator3) {
+                        generator3.userData.blocked = false;
+                    }
+                }
+
+                console.log(
+                    "ANOMALÍA DESTRUIDA"
+                );
+
+            }, 150);
+        }
+
+        console.log(
+            "PULSO IMPACTÓ LA ANOMALÍA"
+        );
+
+        return;
+    }
+
+    if (hit.type === "core") {
+
+        const core =
+            hit.target;
+
+        core.userData.health--;
+
+        const coreMesh =
+            core.userData.coreMesh;
+
+        if (coreMesh && coreMesh.material) {
+            coreMesh.material.emissiveIntensity =
+                Math.max(
+                    0.4,
+                    core.userData.health * 0.6
+                );
+        }
+
+        console.log(
+            `${core.name} VIDA:`,
+            core.userData.health
+        );
+
+        if (core.userData.health <= 0) {
+
+            core.userData.destroyed = true;
+            destroyedUnstableCores++;
+
+            updateLevel2Hud();
+
+            setTimeout(() => {
+
+                scene.remove(core);
+                disposeObject3D(core);
+
+            }, 150);
+
+            if (destroyedUnstableCores === 5) {
+                showLevel2Complete();
+            }
+        }
+
+        console.log(
+            "PULSO IMPACTÓ UN NÚCLEO INESTABLE"
+        );
+
+        return;
+    }
+
+    if (hit.type === "crate") {
+
+        const crate =
+            hit.target;
+
+        crate.body.applyImpulse(
+            {
+                x: pulse.direction.x * 18,
+                y: 6,
+                z: pulse.direction.z * 18
+            },
+            true
+        );
+        crate.body.applyTorqueImpulse(
+            {
+                x: pulse.direction.z * 8,
+                y: 0,
+                z: -pulse.direction.x * 8
+            },
+            true
+        );
+
+        console.log(
+            "PULSO IMPACTÓ UNA CAJA"
+        );
+
+        return;
+    }
+
+    if (hit.type === "barrel") {
+
+        const barrel =
+            hit.target;
+
+        barrel.body.applyImpulse(
+            {
+                x: pulse.direction.x * 18,
+                y: 6,
+                z: pulse.direction.z * 18
+            },
+            true
+        );
+        barrel.body.applyTorqueImpulse(
+            {
+                x: pulse.direction.z * 8,
+                y: 0,
+                z: -pulse.direction.x * 8
+            },
+            true
+        );
+
+        console.log(
+            "PULSO IMPACTÓ UN BARRIL"
+        );
+    }
+}
+
 /* ===============================
    RESPONSIVE
 ================================ */
@@ -3051,10 +3785,22 @@ function animate() {
                 `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
         }
     }
-    if (energyAnomaly) {
+    if (energyAnomaly && currentLevel === 1) {
         energyAnomaly.rotation.y += 0.6 * delta;
     }
-    if (energyAnomaly && r0) {
+
+    if (currentLevel === 2) {
+        unstableCores.forEach((core) => {
+
+            if (!core.userData.destroyed) {
+                core.rotation.y += 0.8 * delta;
+                core.rotation.x += 0.25 * delta;
+            }
+
+        });
+    }
+
+    if (energyAnomaly && r0 && currentLevel === 1) {
 
         const distanceToAnomaly =
             r0.position.distanceTo(
@@ -3215,15 +3961,37 @@ function animate() {
         // Detectar impacto del pulso con cajas
         const crateRaycaster =
             new THREE.Raycaster(
-                pulse.mesh.position,
+                pulse.mesh.position.clone(),
                 pulse.direction,
                 0,
                 movement + pulse.radius
             );
 
+        const closestHit =
+            findClosestPulseHit(
+                crateRaycaster
+            );
+
+        if (closestHit) {
+            pulse.hasHit = true;
+
+            pulse.mesh.position.copy(
+                closestHit.point
+            );
+
+            applyPulseImpact(
+                closestHit,
+                pulse
+            );
+
+            removeEnergyPulse(i);
+            continue;
+        }
+
         // Detectar impacto con la anomalía
         if (
             energyAnomaly &&
+            currentLevel === 1 &&
             energyAnomalyHealth > 0 &&
             !pulse.hasHit
         ) {
@@ -3273,6 +4041,72 @@ function animate() {
                 console.log(
                     "PULSO IMPACTÓ LA ANOMALÍA"
                 );
+            }
+        }
+
+        if (
+            currentLevel === 2 &&
+            !pulse.hasHit
+        ) {
+
+            for (const core of unstableCores) {
+
+                if (core.userData.destroyed) {
+                    continue;
+                }
+
+                const coreIntersections =
+                    crateRaycaster.intersectObject(
+                        core,
+                        true
+                    );
+
+                if (coreIntersections.length > 0) {
+
+                    pulse.hasHit = true;
+                    core.userData.health--;
+
+                    const coreMesh =
+                        core.userData.coreMesh;
+
+                    if (coreMesh && coreMesh.material) {
+                        coreMesh.material.emissiveIntensity =
+                            Math.max(
+                                0.4,
+                                core.userData.health * 0.6
+                            );
+                    }
+
+                    console.log(
+                        `${core.name} VIDA:`,
+                        core.userData.health
+                    );
+
+                    if (core.userData.health <= 0) {
+
+                        core.userData.destroyed = true;
+                        destroyedUnstableCores++;
+
+                        updateLevel2Hud();
+
+                        setTimeout(() => {
+
+                            scene.remove(core);
+                            disposeObject3D(core);
+
+                        }, 150);
+
+                        if (destroyedUnstableCores === 5) {
+                            showLevel2Complete();
+                        }
+                    }
+
+                    console.log(
+                        "PULSO IMPACTÓ UN NÚCLEO INESTABLE"
+                    );
+
+                    break;
+                }
             }
         }
 
@@ -3340,20 +4174,12 @@ function animate() {
 
         // Eliminar el pulso después de recorrer 15 unidades
         if (pulse.distanceTraveled >= 15) {
-
-            scene.remove(
-                pulse.mesh
-            );
-
-            pulse.mesh.geometry.dispose();
-            pulse.mesh.material.dispose();
-
-            energyPulses.splice(
-                i,
-                1
-            );
+            removeEnergyPulse(i);
         }
     }
+
+    updatePulseImpactEffects(delta);
+
     // ===============================
     // SINCRONIZAR CAJAS CON RAPIER
     // ===============================
@@ -3429,24 +4255,27 @@ function animate() {
 
         let generatorNearby = false;
 
-        generators.forEach((generator) => {
+        if (currentLevel === 1) {
 
-            const distance =
-                r0.position.distanceTo(
-                    generator.position
-                );
+            generators.forEach((generator) => {
 
-            if (
-                distance < 2 &&
-                !generator.userData.activated &&
-                !generator.userData.blocked &&
-                generator.name ===
-                `Generator_${activatedGenerators + 1}`
-            ) {
-                generatorNearby = true;
-            }
+                const distance =
+                    r0.position.distanceTo(
+                        generator.position
+                    );
 
-        });
+                if (
+                    distance < 2 &&
+                    !generator.userData.activated &&
+                    !generator.userData.blocked &&
+                    generator.name ===
+                    `Generator_${activatedGenerators + 1}`
+                ) {
+                    generatorNearby = true;
+                }
+
+            });
+        }
 
         if (generatorNearby) {
 
