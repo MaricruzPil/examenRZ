@@ -1,0 +1,11 @@
+Model Information:
+* title:	Sci Fi Energy Core 1
+* source:	https://sketchfab.com/3d-models/sci-fi-energy-core-1-a5aefe7b281f46529aed2ec9d873bc52
+* author:	FilipZelinka (https://sketchfab.com/FilipZelinka)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sci Fi Energy Core 1" (https://sketchfab.com/3d-models/sci-fi-energy-core-1-a5aefe7b281f46529aed2ec9d873bc52) by FilipZelinka (https://sketchfab.com/FilipZelinka) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

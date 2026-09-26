@@ -1,4 +1,4 @@
-import * as THREE from "three";
+﻿import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
@@ -38,6 +38,13 @@ let energyAnomaly = null;
 let energyAnomalyHealth = 3;
 let currentLevel = 1;
 const unstableCores = [];
+let unstableCoreModel = null;
+let cableModel = null;
+let computerModel = null;
+let ventModel = null;
+const level1Decorations = [];
+const level2Decorations = [];
+let labModel = null;
 let destroyedUnstableCores = 0;
 const reactorSupports = [];
 let destroyedReactorSupports = 0;
@@ -300,6 +307,22 @@ directionalLight.position.set(
 directionalLight.castShadow = true;
 
 scene.add(directionalLight);
+function setLevel2Lighting() {
+
+    // Luz ambiental fría del laboratorio
+    ambientLight.color.set(0x8fbfff);
+    ambientLight.intensity = 0.85;
+
+    // Luz principal azulada
+    directionalLight.color.set(0xb8d8ff);
+    directionalLight.intensity = 1.8;
+
+    directionalLight.position.set(
+        -4,
+        9,
+        3
+    );
+}
 
 
 /* ===============================
@@ -1607,6 +1630,7 @@ loader.load(
 
 const dynamicCrates = [];
 const usedCratePositions = [];
+let dynamicCrateOriginal = null;
 
 loader.load(
     "./assets/models/props/crates/Prop_Crate4.gltf",
@@ -1614,6 +1638,7 @@ loader.load(
     function (gltf) {
 
         const crateOriginal = gltf.scene;
+        dynamicCrateOriginal = crateOriginal;
 
         crateOriginal.traverse((child) => {
             if (child.isMesh) {
@@ -1887,6 +1912,7 @@ function createDynamicCrate(
 ================================ */
 
 const dynamicBarrels = [];
+let dynamicBarrelOriginal = null;
 
 loader.load(
     "./assets/models/props/barrels/Prop_Barrel_Large.gltf",
@@ -1894,6 +1920,7 @@ loader.load(
     function (gltf) {
 
         const barrelOriginal = gltf.scene;
+        dynamicBarrelOriginal = barrelOriginal;
 
         barrelOriginal.traverse((child) => {
             if (child.isMesh) {
@@ -2140,7 +2167,9 @@ loader.load(
 
     function (gltf) {
 
-        const cable = gltf.scene;
+        cableModel = gltf.scene;
+
+        const cable = cableModel.clone(true);
 
         cable.traverse((child) => {
             if (child.isMesh) {
@@ -2159,6 +2188,7 @@ loader.load(
         cable.rotation.y = Math.PI / 2;
 
         scene.add(cable);
+        level1Decorations.push(cable);
 
         console.log(
             "Prop_Cable_3 cargado correctamente"
@@ -2185,7 +2215,9 @@ loader.load(
 
     function (gltf) {
 
-        const computer = gltf.scene;
+        computerModel = gltf.scene;
+
+        const computer = computerModel.clone(true);
 
         computer.traverse((child) => {
             if (child.isMesh) {
@@ -2204,6 +2236,7 @@ loader.load(
         computer.rotation.y = -Math.PI / 2;
 
         scene.add(computer);
+        level1Decorations.push(computer);
         const computer2 = computer.clone(true);
 
         computer2.position.set(
@@ -2215,6 +2248,7 @@ loader.load(
         computer2.rotation.y = Math.PI / 2;
 
         scene.add(computer2);
+        level1Decorations.push(computer2);
 
         console.log(
             "Prop_Computer cargado correctamente"
@@ -2241,7 +2275,9 @@ loader.load(
 
     function (gltf) {
 
-        const vent = gltf.scene;
+        ventModel = gltf.scene;
+
+        const vent = ventModel.clone(true);
 
         vent.traverse((child) => {
             if (child.isMesh) {
@@ -2267,6 +2303,7 @@ loader.load(
             );
 
             scene.add(ventClone);
+            level1Decorations.push(ventClone);
         });
 
         console.log(
@@ -2570,8 +2607,51 @@ fbxLoader.load(
     }
 );
 
+loader.load(
+    "assets/models/cores/scene.gltf",
 
+    (gltf) => {
 
+        unstableCoreModel = gltf.scene;
+
+        console.log(
+            "Modelo del núcleo cargado correctamente"
+        );
+    },
+
+    undefined,
+
+    (error) => {
+
+        console.error(
+            "Error al cargar el modelo del núcleo:",
+            error
+        );
+    }
+);
+
+loader.load(
+    "assets/models/lab/scene.gltf",
+
+    (gltf) => {
+
+        labModel = gltf.scene;
+
+        console.log(
+            "Modelo de laboratorio cargado correctamente"
+        );
+    },
+
+    undefined,
+
+    (error) => {
+
+        console.error(
+            "Error al cargar el modelo de laboratorio:",
+            error
+        );
+    }
+);
 
 /* ===============================
    CONTROLES DE CÁMARA
@@ -2819,6 +2899,47 @@ function clearActivePulses() {
     for (let i = energyPulses.length - 1; i >= 0; i--) {
         removeEnergyPulse(i);
     }
+}
+
+function clearDynamicProps() {
+
+    dynamicCrates.forEach((crate) => {
+
+        if (crate.body) {
+
+            physicsWorld.removeRigidBody(
+                crate.body
+            );
+
+            crate.body = null;
+        }
+
+        scene.remove(crate.model);
+    });
+
+    dynamicCrates.length = 0;
+    usedCratePositions.length = 0;
+
+
+    dynamicBarrels.forEach((barrel) => {
+
+        if (barrel.body) {
+
+            physicsWorld.removeRigidBody(
+                barrel.body
+            );
+
+            barrel.body = null;
+        }
+
+        scene.remove(barrel.model);
+    });
+
+    dynamicBarrels.length = 0;
+
+    console.log(
+        "Props dinámicos anteriores eliminados"
+    );
 }
 
 function cancelPendingAttackPulse() {
@@ -3224,52 +3345,44 @@ function createUnstableCore(position, index) {
 
     const coreGroup = new THREE.Group();
 
-    const coreGeometry =
-        new THREE.IcosahedronGeometry(
-            0.55,
-            1
-        );
+    let coreMesh;
 
-    const coreMaterial =
-        new THREE.MeshStandardMaterial({
-            color: 0x00d9ff,
-            emissive: 0x0066ff,
-            emissiveIntensity: 1.8,
-            roughness: 0.25,
-            metalness: 0.35
+    if (unstableCoreModel) {
+
+        coreMesh = unstableCoreModel.clone(true);
+
+        coreMesh.traverse((child) => {
+
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
         });
 
-    const coreMesh =
-        new THREE.Mesh(
-            coreGeometry,
-            coreMaterial
-        );
+    } else {
 
-    coreMesh.castShadow = true;
+        // Modelo provisional por si el GLTF todavía no ha cargado
+        const fallbackGeometry =
+            new THREE.IcosahedronGeometry(
+                0.55,
+                1
+            );
 
-    const ringGeometry =
-        new THREE.TorusGeometry(
-            0.82,
-            0.035,
-            8,
-            32
-        );
+        const fallbackMaterial =
+            new THREE.MeshStandardMaterial({
+                color: 0x00d9ff,
+                emissive: 0x0066ff,
+                emissiveIntensity: 1.8
+            });
 
-    const ringMaterial =
-        new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            transparent: true,
-            opacity: 0.7,
-            toneMapped: false
-        });
+        coreMesh =
+            new THREE.Mesh(
+                fallbackGeometry,
+                fallbackMaterial
+            );
+    }
 
-    const ring =
-        new THREE.Mesh(
-            ringGeometry,
-            ringMaterial
-        );
 
-    ring.rotation.x = Math.PI / 2;
 
     const coreLight =
         new THREE.PointLight(
@@ -3279,7 +3392,6 @@ function createUnstableCore(position, index) {
         );
 
     coreGroup.add(coreMesh);
-    coreGroup.add(ring);
     coreGroup.add(coreLight);
 
     coreGroup.position.set(
@@ -3296,6 +3408,48 @@ function createUnstableCore(position, index) {
     coreGroup.userData.coreMesh = coreMesh;
 
     scene.add(coreGroup);
+    // ===============================
+    // COLLIDER DEL NÚCLEO INESTABLE
+    // ===============================
+
+    coreGroup.updateMatrixWorld(true);
+
+    const coreBox =
+        new THREE.Box3().setFromObject(coreGroup);
+
+    const coreCenter =
+        new THREE.Vector3();
+
+    const coreSize =
+        new THREE.Vector3();
+
+    coreBox.getCenter(coreCenter);
+    coreBox.getSize(coreSize);
+
+    const coreBody =
+        physicsWorld.createRigidBody(
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    coreCenter.x,
+                    coreCenter.y,
+                    coreCenter.z
+                )
+        );
+
+    const CORE_COLLIDER_MARGIN = 0.35;
+
+    physicsWorld.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+            coreSize.x / 2 + CORE_COLLIDER_MARGIN,
+            coreSize.y / 2,
+            coreSize.z / 2 + CORE_COLLIDER_MARGIN
+        ),
+        coreBody
+    );
+
+    coreGroup.userData.body = coreBody;
+
     unstableCores.push(coreGroup);
 }
 
@@ -3304,16 +3458,79 @@ function createLevel2Cores() {
     destroyedUnstableCores = 0;
 
     const corePositions = [
-        { x: -9, y: 1.05, z: -6 },
-        { x: 9, y: 1.05, z: -6 },
-        { x: -7, y: 1.05, z: 4 },
-        { x: 7, y: 1.05, z: 4 },
-        { x: 0, y: 1.05, z: -1 }
+        // Núcleo 01 — primera zona al entrar
+        { x: -4.5, y: 1.05, z: -5.5 },
+
+        // Núcleo 02 — lateral izquierdo
+        { x: -10.5, y: 1.05, z: 0 },
+
+        // Núcleo 03 — lateral derecho
+        { x: 10.5, y: 1.05, z: -1 },
+
+        // Núcleo 04 — zona posterior izquierda
+        { x: -8.5, y: 1.05, z: 6 },
+
+        // Núcleo 05 — zona posterior derecha
+        { x: 8.5, y: 1.05, z: 6 }
     ];
 
     corePositions.forEach((position, index) => {
         createUnstableCore(position, index);
     });
+}
+
+function createLevel2DynamicProps() {
+
+    if (!dynamicCrateOriginal || !dynamicBarrelOriginal) {
+        console.warn(
+            "Props dinámicos del Nivel 2 pendientes: modelos aún no cargados"
+        );
+        return;
+    }
+
+    const level2Crates = [
+        { x: -7.2, y: 1.2, z: -5.4 },
+        { x: -3.1, y: 1.2, z: -7.4 },
+        { x: -12.4, y: 1.2, z: -2.5 },
+        { x: -12.2, y: 1.2, z: 2.7 },
+        { x: 7.2, y: 1.2, z: -3.7 },
+        { x: 12.2, y: 1.2, z: -3.4 },
+        { x: -6.1, y: 1.2, z: 5.1 },
+        { x: -10.9, y: 1.2, z: 7.7 },
+        { x: 6.0, y: 1.2, z: 4.7 },
+        { x: 10.8, y: 1.2, z: 7.7 }
+    ];
+
+    const level2Barrels = [
+        { x: -2.2, y: 0.15, z: -4.1 },
+        { x: -8.0, y: 0.15, z: -0.3 },
+        { x: 8.0, y: 0.15, z: 1.4 },
+        { x: -9.9, y: 0.15, z: 4.0 },
+        { x: 9.9, y: 0.15, z: 3.7 },
+        { x: 2.2, y: 0.15, z: 6.8 }
+    ];
+
+    level2Crates.forEach((position) => {
+        createDynamicCrate(
+            dynamicCrateOriginal,
+            position.x,
+            position.y,
+            position.z
+        );
+    });
+
+    level2Barrels.forEach((position) => {
+        createDynamicBarrel(
+            dynamicBarrelOriginal,
+            position.x,
+            position.y,
+            position.z
+        );
+    });
+
+    console.log(
+        "Distribución física del Nivel 2 creada correctamente"
+    );
 }
 
 function removeUnstableCore(indexOrCore) {
@@ -3332,6 +3549,16 @@ function removeUnstableCore(indexOrCore) {
     }
 
     core.userData.removed = true;
+
+    // Eliminar física del núcleo
+    if (core.userData.body) {
+
+        physicsWorld.removeRigidBody(
+            core.userData.body
+        );
+
+        core.userData.body = null;
+    }
 
     scene.remove(core);
     disposeObject3D(core);
@@ -3358,6 +3585,347 @@ function updateLevel2Hud() {
     );
     clearObjectiveMarker();
 }
+function clearLevel1Decorations() {
+
+    level1Decorations.forEach((object) => {
+        scene.remove(object);
+    });
+
+    level1Decorations.length = 0;
+
+    console.log(
+        "Decoración del Nivel 1 eliminada"
+    );
+}
+function createLevel2ResearchStations() {
+
+    if (!computerModel ||
+        !cableModel ||
+        !ventModel ||
+        !labModel) {
+        console.warn(
+            "Modelos de laboratorio aún no disponibles"
+        );
+        return;
+    }
+
+    // ===============================
+    // ESTACIÓN 01 — DIAGNÓSTICO
+    // ===============================
+
+    const computer =
+        computerModel.clone(true);
+
+    computer.position.set(
+        -4.5,
+        0.1,
+        -7.6
+    );
+
+    computer.rotation.y = 0;
+
+    scene.add(computer);
+    level2Decorations.push(computer);
+
+
+    const cable =
+        cableModel.clone(true);
+
+    cable.position.set(
+        -4.5,
+        0.08,
+        -6.5
+    );
+    cable.rotation.y = 0;
+
+    cable.rotation.y =
+        Math.PI / 2;
+
+    scene.add(cable);
+    level2Decorations.push(cable);
+
+
+    // ===============================
+    // ESTACIÓN 02 — ÁREA DE PRUEBAS
+    // ===============================
+
+    const computer2A =
+        computerModel.clone(true);
+
+    computer2A.position.set(
+        -12.2,
+        0.1,
+        -1.2
+    );
+
+    computer2A.rotation.y =
+        Math.PI / 2;
+
+    scene.add(computer2A);
+    level2Decorations.push(computer2A);
+
+
+    const computer2B =
+        computerModel.clone(true);
+
+    computer2B.position.set(
+        -12.2,
+        0.1,
+        1.2
+    );
+
+    computer2B.rotation.y =
+        Math.PI / 2;
+
+    scene.add(computer2B);
+    level2Decorations.push(computer2B);
+
+
+    // ===============================
+    // ESTACIÓN 03 — ENERGÍA
+    // ===============================
+
+    const vent3 =
+        ventModel.clone(true);
+
+    vent3.position.set(
+        12.5,
+        0.08,
+        -1
+    );
+
+    vent3.rotation.y =
+        Math.PI / 2;
+
+    scene.add(vent3);
+    level2Decorations.push(vent3);
+
+
+    const cable3 =
+        cableModel.clone(true);
+
+    cable3.position.set(
+        11.5,
+        0.08,
+        -1
+    );
+
+    cable3.rotation.y =
+        Math.PI / 2;
+
+    scene.add(cable3);
+    level2Decorations.push(cable3);
+
+
+
+    // ===============================
+    // ESTACIÓN 04 — ANÁLISIS
+    // ===============================
+
+    const computer4A =
+        computerModel.clone(true);
+
+    computer4A.position.set(
+        -10.5,
+        0.1,
+        6.8
+    );
+
+    computer4A.rotation.y =
+        Math.PI / 2;
+
+    scene.add(computer4A);
+    level2Decorations.push(computer4A);
+
+
+    const computer4B =
+        computerModel.clone(true);
+
+    computer4B.position.set(
+        -10.5,
+        0.1,
+        5.4
+    );
+
+    computer4B.rotation.y =
+        Math.PI / 2;
+
+    scene.add(computer4B);
+    level2Decorations.push(computer4B);
+
+
+    const cable4 =
+        cableModel.clone(true);
+
+    cable4.position.set(
+        -9.5,
+        0.08,
+        6
+    );
+
+    cable4.rotation.y =
+        Math.PI / 2;
+
+    scene.add(cable4);
+    level2Decorations.push(cable4);
+
+
+
+
+
+    // ===============================
+    // ESTACIÓN 05 — CONTENCIÓN
+    // ===============================
+
+    const vent5A =
+        ventModel.clone(true);
+
+    vent5A.position.set(
+        5.8,
+        0.08,
+        7.2
+    );
+
+    vent5A.rotation.y = 0;
+
+    scene.add(vent5A);
+    level2Decorations.push(vent5A);
+
+
+
+
+
+    const computer5 =
+        computerModel.clone(true);
+
+    computer5.position.set(
+        8.5,
+        0.1,
+        3.8
+    );
+
+    computer5.rotation.y =
+        Math.PI;
+
+    scene.add(computer5);
+    level2Decorations.push(computer5);
+
+    // ===============================
+    // EQUIPO DE LABORATORIO
+    // ===============================
+
+    if (labModel) {
+
+        const labTest = labModel.clone(true);
+
+        labTest.traverse((child) => {
+
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+
+        });
+
+
+        // Posición definitiva
+        labTest.position.set(
+            0,
+            0.1,
+            -8
+        );
+
+        labTest.scale.set(
+            8,
+            8,
+            8
+        );
+
+        labTest.rotation.y = 0;
+
+        scene.add(labTest);
+
+
+        // ===============================
+        // COLLIDER
+        // ===============================
+
+        // 1. Primero calculamos el tamaño real
+        const labBox =
+            new THREE.Box3().setFromObject(labTest);
+
+        const labSize =
+            new THREE.Vector3();
+
+        const labCenter =
+            new THREE.Vector3();
+
+        labBox.getSize(labSize);
+        labBox.getCenter(labCenter);
+
+
+        // 2. Después creamos el cuerpo físico
+        const labBody =
+            physicsWorld.createRigidBody(
+                RAPIER.RigidBodyDesc.fixed()
+                    .setTranslation(
+                        labCenter.x,
+                        labCenter.y,
+                        labCenter.z
+                    )
+            );
+
+
+        // 3. Finalmente creamos el collider
+        physicsWorld.createCollider(
+            RAPIER.ColliderDesc.cuboid(
+                labSize.x / 2,
+                labSize.y / 2,
+                labSize.z / 2
+            ),
+            labBody
+        );
+
+
+        // Guardamos el cuerpo para eliminarlo
+        // cuando abandonemos el Nivel 2
+        labTest.userData.body = labBody;
+
+
+        level2Decorations.push(labTest);
+
+        console.log(
+            "Equipo de laboratorio y collider creados correctamente"
+        );
+    }
+
+
+}
+function clearLevel2Decorations() {
+
+    level2Decorations.forEach((object) => {
+
+        // Eliminar cuerpo físico si existe
+        if (object.userData.body) {
+
+            physicsWorld.removeRigidBody(
+                object.userData.body
+            );
+
+            object.userData.body = null;
+        }
+
+        // Eliminar objeto visual
+        scene.remove(object);
+    });
+
+    level2Decorations.length = 0;
+
+    console.log(
+        "Decoración y colliders del Nivel 2 eliminados"
+    );
+}
+
 
 function prepareLevel1CompleteScreen() {
 
@@ -3391,6 +3959,13 @@ function prepareLevel1CompleteScreen() {
         "LEVEL 01 // FACTORY";
     levelComplete.querySelector(".complete-footer span:last-child").textContent =
         "RECOVERY CONFIRMED";
+
+    const extraRow =
+        levelComplete.querySelector(".recovery-extra");
+
+    if (extraRow) {
+        extraRow.style.display = "none";
+    }
     nextLevelButton.innerHTML =
         "<span>&#9654;</span> ACCEDER AL LABORATORIO";
 }
@@ -3466,12 +4041,19 @@ function loadLevel2() {
 
     currentLevel = 2;
 
+    setLevel2Lighting();
+
     clearActivePulses();
     clearLevelMissionObjects();
+    clearDynamicProps();
     resetLevelState();
     levelTimeRemaining = 180;
     updateTimerHud();
+    clearLevel1Decorations();
     createLevel2Cores();
+    createLevel2DynamicProps();
+    
+    createLevel2ResearchStations();
     updateLevel2Hud();
     showMissionNotification(
         "LABORATORIO // 5 NÚCLEOS INESTABLES DETECTADOS"
@@ -3958,7 +4540,9 @@ function loadLevel3() {
 
     clearActivePulses();
     clearLevelMissionObjects();
+    clearDynamicProps();
     resetLevelState();
+    clearLevel2Decorations();
     levelTimeRemaining = 180;
     updateTimerHud();
     createReactorSupports();
@@ -4191,9 +4775,86 @@ function playR0Attack() {
 
     return true;
 }
+function getPulseLaunchData() {
+
+    const direction =
+        new THREE.Vector3(
+            Math.sin(r0.rotation.y),
+            0,
+            Math.cos(r0.rotation.y)
+        );
+    const rightDirection =
+        new THREE.Vector3(
+            Math.cos(r0.rotation.y),
+            0,
+            -Math.sin(r0.rotation.y)
+        );
+
+    const origin =
+        r0.position.clone();
+
+    origin.y += 0.9;
+    origin.addScaledVector(
+        rightDirection,
+        -0.20
+    );
+
+    const spawnPosition =
+        origin.clone();
+
+    spawnPosition.addScaledVector(
+        direction,
+        1.4
+    );
+
+    return {
+        origin: origin,
+        spawnPosition: spawnPosition,
+        direction: direction,
+        spawnDistance: 1.4,
+        radius: 0.25
+    };
+}
+
+function resolveImmediatePulseHit(launchData) {
+
+    const raycaster =
+        new THREE.Raycaster(
+            launchData.origin,
+            launchData.direction,
+            0,
+            launchData.spawnDistance +
+            launchData.radius
+        );
+
+    const hit =
+        findClosestPulseHit(raycaster);
+
+    if (!hit) {
+        return false;
+    }
+
+    applyPulseImpact(
+        hit,
+        {
+            direction: launchData.direction,
+            hasHit: true
+        }
+    );
+
+    return true;
+}
+
 function createEnergyPulse() {
 
     if (!r0) {
+        return;
+    }
+
+    const launchData =
+        getPulseLaunchData();
+
+    if (resolveImmediatePulseHit(launchData)) {
         return;
     }
 
@@ -4244,45 +4905,18 @@ function createEnergyPulse() {
 
     pulse.add(glow);
 
-    // Posición inicial del pulso
     pulse.position.copy(
-        r0.position
-    );
-
-    pulse.position.y += 0.9;
-
-    // Dirección hacia donde está mirando R-0
-    const direction =
-        new THREE.Vector3(
-            Math.sin(r0.rotation.y),
-            0,
-            Math.cos(r0.rotation.y)
-        );
-    const rightDirection =
-        new THREE.Vector3(
-            Math.cos(r0.rotation.y),
-            0,
-            -Math.sin(r0.rotation.y)
-        );
-
-    // Colocarlo ligeramente delante de R-0
-    pulse.position.addScaledVector(
-        direction,
-        1.4
-    );
-    pulse.position.addScaledVector(
-        rightDirection,
-        -0.20
+        launchData.spawnPosition
     );
 
     scene.add(pulse);
 
     energyPulses.push({
         mesh: pulse,
-        direction: direction,
+        direction: launchData.direction,
         speed: 12,
         distanceTraveled: 0,
-        radius: 0.25,
+        radius: launchData.radius,
         hasHit: false
     });
 }
@@ -4447,6 +5081,26 @@ function findClosestPulseHit(raycaster) {
         );
     }
 
+    if (currentLevel === 1) {
+        generators.forEach((generator) => {
+
+            if (!generator.visible) {
+                return;
+            }
+
+            addClosestPulseHit(
+                hits,
+                raycaster.intersectObject(
+                    generator,
+                    true
+                ),
+                "generator",
+                generator
+            );
+
+        });
+    }
+
     if (currentLevel === 2) {
         unstableCores.forEach((core) => {
 
@@ -4568,6 +5222,15 @@ function applyPulseImpact(hit, pulse) {
 
         console.log(
             "PULSO IMPACTÓ LA ANOMALÍA"
+        );
+
+        return;
+    }
+
+    if (hit.type === "generator") {
+
+        console.log(
+            "PULSO BLOQUEADO POR UN GENERADOR"
         );
 
         return;
