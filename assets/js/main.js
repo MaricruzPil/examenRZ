@@ -64,6 +64,8 @@ let objectiveMarkerTarget = null;
 let objectiveMarkerLabel = "";
 let missionNotificationTimeout = null;
 let r0Energy = 100;
+let score = 0;
+let level2RechargeCount = 0;
 let lastAnomalyDamageTime = 0;
 let gameOver = false;
 const LEVEL_TIME_LIMIT = 120;
@@ -2947,14 +2949,21 @@ startButton.addEventListener(
 );
 const energyDisplay =
     document.getElementById("energy");
+const energyUnitDisplay =
+    document.getElementById("energy-unit");
+const energyLabelDisplay =
+    document.querySelector(
+        ".hud-energy-info .hud-label"
+    );
 const energyFill =
     document.querySelector(".energy-fill");
 const timerDisplay =
     document.getElementById("timer");
+const scoreDisplay =
+    document.getElementById("score");
 
-energyDisplay.textContent = r0Energy;
-energyFill.style.width =
-    `${r0Energy}%`;
+updateEnergyHud();
+updateScoreHud();
 const minutes =
     Math.floor(levelTimeRemaining / 60);
 
@@ -3013,9 +3022,61 @@ function formatTimer(secondsRemaining) {
 
 function updateEnergyHud() {
 
-    energyDisplay.textContent = r0Energy;
+    if (currentLevel === 2) {
+        const availablePulses =
+            Math.floor(
+                r0Energy / ENERGY_COST_PER_CORE_PULSE
+            );
+
+        const maxPulses =
+            Math.floor(
+                100 / ENERGY_COST_PER_CORE_PULSE
+            );
+
+        energyLabelDisplay.textContent =
+            "PULSOS DISPONIBLES";
+        energyDisplay.textContent =
+            `${availablePulses} / ${maxPulses}`;
+        energyUnitDisplay.textContent = "";
+    } else {
+        energyLabelDisplay.textContent =
+            "NÚCLEO DE ENERGÍA";
+        energyDisplay.textContent = r0Energy;
+        energyUnitDisplay.textContent = "%";
+    }
+
     energyFill.style.width =
         `${r0Energy}%`;
+}
+
+function updateScoreHud() {
+
+    scoreDisplay.textContent = score;
+}
+
+function addScore(points, message = "") {
+
+    score += points;
+    updateScoreHud();
+
+    if (message) {
+        showMissionNotification(message);
+    }
+}
+
+function subtractScore(points, message = "") {
+
+    score =
+        Math.max(
+            0,
+            score - points
+        );
+
+    updateScoreHud();
+
+    if (message) {
+        showMissionNotification(message);
+    }
 }
 
 function updateTimerHud() {
@@ -3377,58 +3438,129 @@ function createObjectiveMarker() {
     const markerGroup =
         new THREE.Group();
 
-    const ring =
+    const beam =
         new THREE.Mesh(
-            new THREE.TorusGeometry(
-                0.75,
-                0.035,
-                8,
-                32
+            new THREE.CylinderGeometry(
+                0.018,
+                0.018,
+                1.05,
+                6
             ),
             new THREE.MeshBasicMaterial({
-                color: 0xffc15a,
+                color: 0x7df4ff,
                 transparent: true,
-                opacity: 0.85,
+                opacity: 0.55,
+                depthWrite: false,
                 toneMapped: false
             })
         );
 
-    const beacon =
+    beam.position.y = 0.45;
+
+    const diamond =
         new THREE.Mesh(
-            new THREE.SphereGeometry(
-                0.16,
-                12,
-                12
+            new THREE.OctahedronGeometry(
+                0.22,
+                0
             ),
             new THREE.MeshBasicMaterial({
                 color: 0x00d9ff,
                 transparent: true,
-                opacity: 0.9,
+                opacity: 0.82,
+                depthWrite: false,
                 toneMapped: false
             })
         );
 
-    beacon.position.y = 0.55;
+    diamond.position.y = 1.02;
+
+    const chevron =
+        new THREE.Mesh(
+            new THREE.ConeGeometry(
+                0.34,
+                0.34,
+                4
+            ),
+            new THREE.MeshBasicMaterial({
+                color: 0xffd36a,
+                transparent: true,
+                opacity: 0.9,
+                depthWrite: false,
+                toneMapped: false
+            })
+        );
+
+    chevron.position.y = 1.42;
+    chevron.rotation.y = Math.PI / 4;
+    chevron.rotation.x = Math.PI;
 
     const light =
         new THREE.PointLight(
             0x00d9ff,
-            0.9,
-            4
+            0.75,
+            3.5
         );
 
-    light.position.y = 0.5;
+    light.position.y = 1.0;
 
-    markerGroup.add(ring);
-    markerGroup.add(beacon);
+    markerGroup.add(beam);
+    markerGroup.add(diamond);
+    markerGroup.add(chevron);
     markerGroup.add(light);
 
-    markerGroup.userData.ring = ring;
-    markerGroup.userData.beacon = beacon;
+    markerGroup.userData.beam = beam;
+    markerGroup.userData.diamond = diamond;
+    markerGroup.userData.chevron = chevron;
 
     scene.add(markerGroup);
 
     return markerGroup;
+}
+
+function createSupportLabelSprite(text) {
+
+    const canvas =
+        document.createElement("canvas");
+
+    canvas.width = 512;
+    canvas.height = 96;
+
+    const context =
+        canvas.getContext("2d");
+
+    context.fillStyle = "rgba(0, 16, 22, 0.72)";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = "#00e5ff";
+    context.lineWidth = 4;
+    context.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
+    context.fillStyle = "#dffcff";
+    context.font = "bold 34px monospace";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+    const texture =
+        new THREE.CanvasTexture(canvas);
+
+    const sprite =
+        new THREE.Sprite(
+            new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                depthWrite: false,
+                toneMapped: false
+            })
+        );
+
+    sprite.scale.set(
+        2.6,
+        0.5,
+        1
+    );
+
+    sprite.position.y = 3.05;
+
+    return sprite;
 }
 
 function setObjectiveMarker(target, label = "") {
@@ -3460,16 +3592,26 @@ function updateObjectiveMarker(delta) {
     );
 
     objectiveMarker.position.y += 2.15;
-    objectiveMarker.rotation.y += 1.7 * delta;
 
     const pulse =
-        1 + Math.sin(performance.now() * 0.006) * 0.12;
+        1 + Math.sin(performance.now() * 0.006) * 0.08;
 
     objectiveMarker.scale.set(
         pulse,
         pulse,
         pulse
     );
+
+    if (objectiveMarker.userData.diamond) {
+        objectiveMarker.userData.diamond.rotation.y +=
+            1.9 * delta;
+    }
+
+    if (objectiveMarker.userData.chevron) {
+        objectiveMarker.userData.chevron.position.y =
+            1.42 +
+            Math.sin(performance.now() * 0.005) * 0.08;
+    }
 }
 
 function updateCameraCollision() {
@@ -4615,6 +4757,15 @@ function createReactorSupport(position, index) {
     // para efectos posteriores.
     supportGroup.userData.coreMesh = supportModel;
 
+    const supportLabel =
+        createSupportLabelSprite(
+            `REACTOR SUPPORT ${String(index + 1).padStart(2, "0")}`
+        );
+
+    supportGroup.add(supportLabel);
+    supportGroup.userData.labelSprite =
+        supportLabel;
+
     const start =
         new THREE.Vector3(
             position.x,
@@ -4825,7 +4976,7 @@ function createLevel3Exit() {
         new THREE.MeshBasicMaterial({
             color: 0x00ffcc,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.28,
             toneMapped: false,
             depthWrite: false
         });
@@ -4833,38 +4984,61 @@ function createLevel3Exit() {
     const marker =
         new THREE.Mesh(
             new THREE.BoxGeometry(
-                2.6,
+                3.0,
                 0.08,
-                1.25
+                1.45
             ),
             markerMaterial
         );
 
     marker.position.y = 0.08;
 
-    const arrow =
+    const frameMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x00ffcc,
+            transparent: true,
+            opacity: 0.7,
+            toneMapped: false
+        });
+
+    const leftPost =
         new THREE.Mesh(
-            new THREE.ConeGeometry(
-                0.22,
-                0.55,
-                3
+            new THREE.BoxGeometry(
+                0.08,
+                2.0,
+                0.08
             ),
-            new THREE.MeshBasicMaterial({
-                color: 0x00ffcc,
-                transparent: true,
-                opacity: 0.75,
-                toneMapped: false
-            })
+            frameMaterial
         );
 
-    arrow.position.y = 1.75;
-    arrow.rotation.x = Math.PI;
+    leftPost.position.set(
+        -1.35,
+        1.05,
+        0
+    );
+
+    const rightPost =
+        leftPost.clone();
+
+    rightPost.position.x = 1.35;
+
+    const topBar =
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                2.8,
+                0.08,
+                0.08
+            ),
+            frameMaterial
+        );
+
+    topBar.position.y = 2.0;
 
     const light =
         new THREE.PointLight(
             0x00ffcc,
-            1.6,
-            7
+            2.2,
+            8
         );
 
     light.position.y = 1.2;
@@ -4872,8 +5046,8 @@ function createLevel3Exit() {
     const canvas =
         document.createElement("canvas");
 
-    canvas.width = 256;
-    canvas.height = 96;
+    canvas.width = 384;
+    canvas.height = 128;
 
     const context =
         canvas.getContext("2d");
@@ -4884,7 +5058,7 @@ function createLevel3Exit() {
     context.lineWidth = 5;
     context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
     context.fillStyle = "#00ffcc";
-    context.font = "bold 44px monospace";
+    context.font = "bold 62px monospace";
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillText("EVAC", canvas.width / 2, canvas.height / 2);
@@ -4902,15 +5076,17 @@ function createLevel3Exit() {
             })
         );
 
-    sign.position.y = 2.55;
+    sign.position.y = 2.75;
     sign.scale.set(
-        1.9,
-        0.72,
+        2.7,
+        0.9,
         1
     );
 
     exitGroup.add(marker);
-    exitGroup.add(arrow);
+    exitGroup.add(leftPost);
+    exitGroup.add(rightPost);
+    exitGroup.add(topBar);
     exitGroup.add(light);
     exitGroup.add(sign);
 
@@ -4926,6 +5102,9 @@ function createLevel3Exit() {
     exitGroup.visible = false;
     exitGroup.userData.halfWidth = 1.35;
     exitGroup.userData.halfDepth = 0.75;
+    exitGroup.userData.marker = marker;
+    exitGroup.userData.light = light;
+    exitGroup.userData.sign = sign;
 
     scene.add(exitGroup);
     level3ExitZone = exitGroup;
@@ -4943,10 +5122,7 @@ function startLevel3Escape() {
 
     level3ExitZone.visible = true;
     setLevel3EmergencyLighting();
-    setObjectiveMarker(
-        level3ExitZone,
-        "EVAC"
-    );
+    clearObjectiveMarker();
     updateLevel3EscapeHud();
 
     showMissionNotification(
@@ -5163,6 +5339,20 @@ function updateLevel3Escape(delta) {
 
     if (level3ExitZone) {
         level3ExitZone.rotation.y += 1.6 * delta;
+
+        const evacPulse =
+            0.75 +
+            Math.sin(performance.now() * 0.008) * 0.18;
+
+        if (level3ExitZone.userData.marker) {
+            level3ExitZone.userData.marker.material.opacity =
+                0.28 + evacPulse * 0.18;
+        }
+
+        if (level3ExitZone.userData.light) {
+            level3ExitZone.userData.light.intensity =
+                1.8 + evacPulse * 1.2;
+        }
     }
 
     if (level3EscapeTimeRemaining <= 0) {
@@ -5199,6 +5389,19 @@ function showFinalVictory() {
     clearObjectiveMarker();
     levelTimerRunning = false;
     gameplayActive = false;
+
+    const evacuationBonus =
+        Math.max(
+            0,
+            Math.floor(level3EscapeTimeRemaining) * 10
+        );
+
+    if (evacuationBonus > 0) {
+        addScore(
+            evacuationBonus,
+            `BONO EVAC +${evacuationBonus} PTS`
+        );
+    }
 
     levelCompleted = true;
     level3EscapeActive = false;
@@ -5300,6 +5503,11 @@ function clearLevel3Objects() {
             support.userData.energyBeam.geometry.dispose();
             support.userData.energyBeam.material.dispose();
             support.userData.energyBeam = null;
+        }
+
+        if (support.userData.labelSprite) {
+            disposeObject3D(support.userData.labelSprite);
+            support.userData.labelSprite = null;
         }
 
         scene.remove(support);
@@ -5585,9 +5793,10 @@ window.addEventListener(
                     generator.add(indicatorLight);
 
                     activatedGenerators++;
+                    addScore(100);
                     // Mostrar confirmación de activación
                     notificationMessage.textContent =
-                        `GENERATOR ${String(activatedGenerators).padStart(2, "0")} // ONLINE`;
+                        `GENERATOR ${String(activatedGenerators).padStart(2, "0")} // ONLINE // +100 PTS`;
 
                     systemNotification
                         .classList
@@ -5603,15 +5812,15 @@ window.addEventListener(
 
                     if (activatedGenerators === 1) {
                         showMissionNotification(
-                            "GENERATOR 01 ONLINE // NUEVO OBJETIVO: GENERATOR 02"
+                            "GENERATOR 01 ONLINE // +100 PTS // NUEVO OBJETIVO: GENERATOR 02"
                         );
                     } else if (activatedGenerators === 2) {
                         showMissionNotification(
-                            "GENERATOR 02 ONLINE // ANOMALÍA DETECTADA"
+                            "GENERATOR 02 ONLINE // +100 PTS // ANOMALÍA DETECTADA"
                         );
                     } else {
                         showMissionNotification(
-                            "GENERATOR 03 ONLINE // SECTOR RESTAURADO"
+                            "GENERATOR 03 ONLINE // +100 PTS // SECTOR RESTAURADO"
                         );
                     }
 
@@ -5655,12 +5864,23 @@ window.addEventListener(
                     level2RechargeStation.position
                 );
 
-            if (distance < 3) {
+            if (
+                distance < 3 &&
+                r0Energy < 100
+            ) {
+                level2RechargeCount++;
+
+                const rechargePenalty =
+                    level2RechargeCount * 50;
+
                 r0Energy = 100;
                 updateEnergyHud();
-                showMissionNotification(
-                    "RECARGA COMPLETA // ENERGÍA 100%"
+
+                subtractScore(
+                    rechargePenalty,
+                    `RECARGA ${String(level2RechargeCount).padStart(2, "0")} // -${rechargePenalty} PTS // PULSOS 10 / 10`
                 );
+
                 updateLevel2ObjectiveMarker();
             }
         }
@@ -5826,7 +6046,7 @@ function spendLevel2PulseEnergy() {
 
     if (r0Energy < ENERGY_COST_PER_CORE_PULSE) {
         showMissionNotification(
-            "ENERGÍA INSUFICIENTE // LOCALIZA LA ESTACIÓN DE RECARGA"
+            "PULSOS INSUFICIENTES // LOCALIZA LA ESTACIÓN DE RECARGA"
         );
         updateLevel2ObjectiveMarker(true);
         return false;
@@ -6064,6 +6284,35 @@ function addClosestPulseHit(hits, intersections, type, target) {
     });
 }
 
+function intersectPulseTarget(raycaster, target) {
+
+    const disabledSpriteRaycasts = [];
+
+    target.traverse((child) => {
+
+        if (child.isSprite) {
+            disabledSpriteRaycasts.push({
+                sprite: child,
+                raycast: child.raycast
+            });
+
+            child.raycast = () => {};
+        }
+
+    });
+
+    try {
+        return raycaster.intersectObject(
+            target,
+            true
+        );
+    } finally {
+        disabledSpriteRaycasts.forEach((entry) => {
+            entry.sprite.raycast = entry.raycast;
+        });
+    }
+}
+
 function findClosestPulseHit(raycaster) {
 
     const hits = [];
@@ -6075,9 +6324,9 @@ function findClosestPulseHit(raycaster) {
     ) {
         addClosestPulseHit(
             hits,
-            raycaster.intersectObject(
-                energyAnomaly,
-                true
+            intersectPulseTarget(
+                raycaster,
+                energyAnomaly
             ),
             "anomaly",
             energyAnomaly
@@ -6093,9 +6342,9 @@ function findClosestPulseHit(raycaster) {
 
             addClosestPulseHit(
                 hits,
-                raycaster.intersectObject(
-                    generator,
-                    true
+                intersectPulseTarget(
+                    raycaster,
+                    generator
                 ),
                 "generator",
                 generator
@@ -6113,9 +6362,9 @@ function findClosestPulseHit(raycaster) {
 
             addClosestPulseHit(
                 hits,
-                raycaster.intersectObject(
-                    core,
-                    true
+                intersectPulseTarget(
+                    raycaster,
+                    core
                 ),
                 "core",
                 core
@@ -6133,9 +6382,9 @@ function findClosestPulseHit(raycaster) {
 
             addClosestPulseHit(
                 hits,
-                raycaster.intersectObject(
-                    support,
-                    true
+                intersectPulseTarget(
+                    raycaster,
+                    support
                 ),
                 "support",
                 support
@@ -6146,9 +6395,9 @@ function findClosestPulseHit(raycaster) {
 
             addClosestPulseHit(
                 hits,
-                raycaster.intersectObject(
-                    level3Reactor,
-                    true
+                intersectPulseTarget(
+                    raycaster,
+                    level3Reactor
                 ),
                 "reactor",
                 level3Reactor
@@ -6162,9 +6411,9 @@ function findClosestPulseHit(raycaster) {
 
         addClosestPulseHit(
             hits,
-            raycaster.intersectObject(
-                crate.model,
-                true
+            intersectPulseTarget(
+                raycaster,
+                crate.model
             ),
             "crate",
             crate
@@ -6176,9 +6425,9 @@ function findClosestPulseHit(raycaster) {
 
         addClosestPulseHit(
             hits,
-            raycaster.intersectObject(
-                barrel.model,
-                true
+            intersectPulseTarget(
+                raycaster,
+                barrel.model
             ),
             "barrel",
             barrel
@@ -6287,7 +6536,7 @@ function applyPulseImpact(hit, pulse) {
 
         showMissionNotification(
             core.userData.health <= 0
-                ? `${coreDisplayName} // INTEGRIDAD 0 / 3 // DESTRUIDO`
+                ? `${coreDisplayName} // INTEGRIDAD 0 / 3 // DESTRUIDO // +150 PTS`
                 : `${coreDisplayName} // INTEGRIDAD ${core.userData.health} / 3`
         );
 
@@ -6311,6 +6560,7 @@ function applyPulseImpact(hit, pulse) {
 
             core.userData.destroyed = true;
             destroyedUnstableCores++;
+            addScore(150);
 
             updateLevel2Hud();
 
@@ -6397,7 +6647,7 @@ function applyPulseImpact(hit, pulse) {
 
         showMissionNotification(
             support.userData.health <= 0
-                ? `${supportLabel} // INTEGRIDAD 0 / 3 // DESTRUIDO`
+                ? `${supportLabel} // INTEGRIDAD 0 / 3 // DESTRUIDO // +200 PTS`
                 : `${supportLabel} // INTEGRIDAD ${support.userData.health} / 3`
         );
 
@@ -6421,6 +6671,7 @@ function applyPulseImpact(hit, pulse) {
 
             support.userData.destroyed = true;
             destroyedReactorSupports++;
+            addScore(200);
 
             updateLevel3Hud();
 
@@ -6438,6 +6689,11 @@ function applyPulseImpact(hit, pulse) {
                     support.userData.energyBeam.material.dispose();
 
                     support.userData.energyBeam = null;
+                }
+
+                if (support.userData.labelSprite) {
+                    disposeObject3D(support.userData.labelSprite);
+                    support.userData.labelSprite = null;
                 }
 
                 // Quitar solamente este soporte de la escena.
