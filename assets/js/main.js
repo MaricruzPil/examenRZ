@@ -37,6 +37,13 @@ const pulseImpactEffects = [];
 let energyAnomaly = null;
 let energyAnomalyHealth = 3;
 let currentLevel = 1;
+let spindModel = null;
+let controlPanelModel = null;
+let level3Reactor = null;
+let level3ControlPanel = null;
+let level3Machinery = null;
+let reactorSupportModel = null;
+let reactorModel = null;
 const unstableCores = [];
 let unstableCoreModel = null;
 let cableModel = null;
@@ -130,6 +137,62 @@ const cameraRayDirection =
     new THREE.Vector3();
 
 const cameraObstacles = [];
+const cameraCollisionMargin = 0.35;
+
+function createCameraBoundaryObstacles() {
+
+    const boundaryMaterial =
+        new THREE.MeshBasicMaterial({
+            transparent: true,
+            opacity: 0,
+            depthWrite: false
+        });
+
+    const boundaries = [
+        {
+            position: [0, 3, -11.6],
+            size: [31, 6, 0.4]
+        },
+        {
+            position: [0, 3, 11.6],
+            size: [31, 6, 0.4]
+        },
+        {
+            position: [-15.6, 3, 0],
+            size: [0.4, 6, 23]
+        },
+        {
+            position: [15.6, 3, 0],
+            size: [0.4, 6, 23]
+        }
+    ];
+
+    boundaries.forEach((boundary) => {
+
+        const obstacle =
+            new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    boundary.size[0],
+                    boundary.size[1],
+                    boundary.size[2]
+                ),
+                boundaryMaterial
+            );
+
+        obstacle.position.set(
+            boundary.position[0],
+            boundary.position[1],
+            boundary.position[2]
+        );
+
+        obstacle.userData.cameraBoundary = true;
+
+        scene.add(obstacle);
+        cameraObstacles.push(obstacle);
+    });
+}
+
+createCameraBoundaryObstacles();
 
 await RAPIER.init();
 
@@ -325,6 +388,37 @@ function setLevel2Lighting() {
         -4,
         9,
         3
+    );
+}
+function setLevel3Lighting() {
+
+    // Ambiente oscuro y frío del Reactor Zero
+    ambientLight.color.set(0x3f5f78);
+    ambientLight.intensity = 0.55;
+
+    // Luz principal fría con tono azulado
+    directionalLight.color.set(0x7fa6c9);
+    directionalLight.intensity = 1.15;
+
+    directionalLight.position.set(
+        -3,
+        8,
+        4
+    );
+}
+
+function setLevel3EmergencyLighting() {
+
+    ambientLight.color.set(0xff6b4a);
+    ambientLight.intensity = 0.78;
+
+    directionalLight.color.set(0xffb38a);
+    directionalLight.intensity = 1.65;
+
+    directionalLight.position.set(
+        -5,
+        9,
+        2
     );
 }
 
@@ -2656,6 +2750,88 @@ loader.load(
         );
     }
 );
+loader.load(
+    "assets/models/reactor/scene.gltf",
+    (gltf) => {
+
+        reactorModel = gltf.scene;
+
+        console.log(
+            "Modelo del reactor cargado correctamente"
+        );
+    },
+    undefined,
+    (error) => {
+
+        console.error(
+            "Error al cargar el modelo del reactor:",
+            error
+        );
+    }
+);
+loader.load(
+    "assets/models/soporte/scene.gltf",
+    (gltf) => {
+
+        reactorSupportModel = gltf.scene;
+
+        console.log(
+            "Modelo del soporte del reactor cargado correctamente"
+        );
+
+    },
+    undefined,
+    (error) => {
+
+        console.error(
+            "Error al cargar el modelo del soporte del reactor:",
+            error
+        );
+
+    }
+);
+loader.load(
+    "assets/models/control-panel/scene.gltf",
+    (gltf) => {
+
+        controlPanelModel = gltf.scene;
+
+        console.log(
+            "Modelo del panel de control cargado correctamente"
+        );
+
+    },
+    undefined,
+    (error) => {
+
+        console.error(
+            "Error al cargar el panel de control:",
+            error
+        );
+
+    }
+);
+loader.load(
+    "assets/models/spind/scene.gltf",
+    (gltf) => {
+
+        spindModel = gltf.scene;
+
+        console.log(
+            "Modelo Spind cargado correctamente"
+        );
+
+    },
+    undefined,
+    (error) => {
+
+        console.error(
+            "Error al cargar el modelo Spind:",
+            error
+        );
+
+    }
+);
 
 /* ===============================
    CONTROLES DE CÁMARA
@@ -2749,7 +2925,10 @@ startButton.addEventListener(
             )
             .classList
             .remove("hidden");
-
+        
+        // ===============================
+        // INICIO NORMAL DEL JUEGO
+        // ===============================
         updateLevel1ObjectiveHud();
 
         configureLevelIntro(
@@ -3293,6 +3472,63 @@ function updateObjectiveMarker(delta) {
     );
 }
 
+function updateCameraCollision() {
+
+    if (
+        !r0 ||
+        cameraObstacles.length === 0
+    ) {
+        return;
+    }
+
+    cameraRayDirection
+        .copy(camera.position)
+        .sub(controls.target);
+
+    const desiredDistance =
+        cameraRayDirection.length();
+
+    if (desiredDistance <= 0.001) {
+        return;
+    }
+
+    cameraRayDirection.normalize();
+
+    cameraRaycaster.set(
+        controls.target,
+        cameraRayDirection
+    );
+
+    cameraRaycaster.near = 0.05;
+    cameraRaycaster.far = desiredDistance;
+
+    const intersections =
+        cameraRaycaster.intersectObjects(
+            cameraObstacles,
+            true
+        );
+
+    if (intersections.length === 0) {
+        return;
+    }
+
+    const hitDistance =
+        intersections[0].distance;
+
+    const safeDistance =
+        Math.max(
+            hitDistance - cameraCollisionMargin,
+            0.85
+        );
+
+    camera.position
+        .copy(controls.target)
+        .addScaledVector(
+            cameraRayDirection,
+            safeDistance
+        );
+}
+
 function updateLevel1ObjectiveHud() {
 
     if (currentLevel !== 1) {
@@ -3416,6 +3652,67 @@ function disposeObject3D(object) {
         }
 
     });
+}
+
+function createFixedBoxColliderFromObject(
+    object,
+    scale = {
+        x: 0.46,
+        y: 0.46,
+        z: 0.46
+    }
+) {
+
+    object.updateMatrixWorld(true);
+
+    const box =
+        new THREE.Box3().setFromObject(object);
+
+    const size =
+        new THREE.Vector3();
+
+    const center =
+        new THREE.Vector3();
+
+    box.getSize(size);
+    box.getCenter(center);
+
+    const body =
+        physicsWorld.createRigidBody(
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    center.x,
+                    center.y,
+                    center.z
+                )
+        );
+
+    physicsWorld.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+            size.x * scale.x,
+            size.y * scale.y,
+            size.z * scale.z
+        ),
+        body
+    );
+
+    object.userData.body = body;
+
+    return body;
+}
+
+function removeRigidBodyFromObject(object) {
+
+    if (!object || !object.userData.body) {
+        return;
+    }
+
+    physicsWorld.removeRigidBody(
+        object.userData.body
+    );
+
+    object.userData.body = null;
 }
 
 function createUnstableCore(position, index) {
@@ -3775,6 +4072,7 @@ function createLevel2ResearchStations() {
 
     scene.add(computer);
     level2Decorations.push(computer);
+    createFixedBoxColliderFromObject(computer);
 
 
     const cable =
@@ -3812,6 +4110,7 @@ function createLevel2ResearchStations() {
 
     scene.add(computer2A);
     level2Decorations.push(computer2A);
+    createFixedBoxColliderFromObject(computer2A);
 
 
     const computer2B =
@@ -3828,6 +4127,7 @@ function createLevel2ResearchStations() {
 
     scene.add(computer2B);
     level2Decorations.push(computer2B);
+    createFixedBoxColliderFromObject(computer2B);
 
 
     // ===============================
@@ -3885,6 +4185,7 @@ function createLevel2ResearchStations() {
 
     scene.add(computer4A);
     level2Decorations.push(computer4A);
+    createFixedBoxColliderFromObject(computer4A);
 
 
     const computer4B =
@@ -3901,6 +4202,7 @@ function createLevel2ResearchStations() {
 
     scene.add(computer4B);
     level2Decorations.push(computer4B);
+    createFixedBoxColliderFromObject(computer4B);
 
 
     const cable4 =
@@ -3958,6 +4260,7 @@ function createLevel2ResearchStations() {
 
     scene.add(computer5);
     level2Decorations.push(computer5);
+    createFixedBoxColliderFromObject(computer5);
 
     // ===============================
     // EQUIPO DE LABORATORIO
@@ -4057,15 +4360,7 @@ function clearLevel2Decorations() {
 
     level2Decorations.forEach((object) => {
 
-        // Eliminar cuerpo físico si existe
-        if (object.userData.body) {
-
-            physicsWorld.removeRigidBody(
-                object.userData.body
-            );
-
-            object.userData.body = null;
-        }
+        removeRigidBodyFromObject(object);
 
         // Eliminar objeto visual
         scene.remove(object);
@@ -4208,7 +4503,7 @@ function loadLevel2() {
     clearLevel1Decorations();
     createLevel2Cores();
     createLevel2DynamicProps();
-    
+
     createLevel2ResearchStations();
     updateLevel2Hud();
     moveR0ToStart({
@@ -4235,79 +4530,69 @@ function loadLevel2() {
 
 function createReactorSupport(position, index) {
 
+    if (!reactorSupportModel) {
+        console.warn(
+            `Modelo del soporte ${index + 1} aún no disponible`
+        );
+        return;
+    }
+
     const supportGroup = new THREE.Group();
 
-    const baseMaterial =
-        new THREE.MeshStandardMaterial({
-            color: 0x1e4f66,
-            emissive: 0x003344,
-            emissiveIntensity: 0.8,
-            roughness: 0.35,
-            metalness: 0.55
-        });
+    // =========================================
+    // MODELO 3D DEL SOPORTE
+    // =========================================
 
-    const coreMaterial =
-        new THREE.MeshBasicMaterial({
-            color: 0x00e5ff,
-            transparent: true,
-            opacity: 0.85,
-            toneMapped: false
-        });
+    const supportModel =
+        reactorSupportModel.clone(true);
 
-    const pillar =
-        new THREE.Mesh(
-            new THREE.CylinderGeometry(
-                0.45,
-                0.65,
-                2.6,
-                12
-            ),
-            baseMaterial
-        );
+    supportModel.traverse((child) => {
 
-    pillar.position.y = 1.3;
-    pillar.castShadow = true;
-    pillar.receiveShadow = true;
+        if (child.isMesh) {
 
-    const core =
-        new THREE.Mesh(
-            new THREE.SphereGeometry(
-                0.34,
-                16,
-                16
-            ),
-            coreMaterial
-        );
+            child.castShadow = true;
+            child.receiveShadow = true;
 
-    core.position.y = 2.65;
+        }
 
-    const ring =
-        new THREE.Mesh(
-            new THREE.TorusGeometry(
-                0.72,
-                0.04,
-                8,
-                32
-            ),
-            coreMaterial.clone()
-        );
+    });
 
-    ring.position.y = 1.65;
-    ring.rotation.x = Math.PI / 2;
+    supportModel.scale.set(
+        0.0007,
+        0.0007,
+        0.0007
+    );
+
+    supportModel.position.set(
+        0,
+        0,
+        0
+    );
+
+    supportModel.rotation.y = 0;
+
+    supportGroup.add(supportModel);
+
+
+    // =========================================
+    // LUZ DEL SOPORTE
+    // =========================================
 
     const light =
         new THREE.PointLight(
             0x00e5ff,
-            1.4,
-            5
+            1.2,
+            4
         );
 
-    light.position.y = 2.3;
+    light.position.y = 1.8;
 
-    supportGroup.add(pillar);
-    supportGroup.add(core);
-    supportGroup.add(ring);
     supportGroup.add(light);
+
+
+    // =========================================
+    // POSICIÓN DEL SOPORTE
+    // =========================================
 
     supportGroup.position.set(
         position.x,
@@ -4318,12 +4603,148 @@ function createReactorSupport(position, index) {
     supportGroup.name =
         `Reactor_Support_${index + 1}`;
 
+
+    // =========================================
+    // DATOS DE GAMEPLAY
+    // =========================================
+
     supportGroup.userData.health = 3;
     supportGroup.userData.destroyed = false;
-    supportGroup.userData.coreMesh = core;
+
+    // Conservamos una referencia visual
+    // para efectos posteriores.
+    supportGroup.userData.coreMesh = supportModel;
+
+    const start =
+        new THREE.Vector3(
+            position.x,
+            1.4,
+            position.z
+        );
+
+    const end =
+        new THREE.Vector3(
+            0,
+            1.4,
+            0
+        );
+
+    const direction =
+        new THREE.Vector3()
+            .subVectors(end, start);
+
+    const distance =
+        direction.length();
+
+    const midpoint =
+        new THREE.Vector3()
+            .addVectors(start, end)
+            .multiplyScalar(0.5);
+
+    const geometry =
+        new THREE.CylinderGeometry(
+            0.045,
+            0.045,
+            distance,
+            8
+        );
+
+    const material =
+        new THREE.MeshBasicMaterial({
+            color: 0x00e5ff,
+            transparent: true,
+            opacity: 0.7,
+            toneMapped: false
+        });
+
+    const energyBeam =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    energyBeam.position.copy(midpoint);
+
+    energyBeam.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        direction.clone().normalize()
+    );
+
+    scene.add(energyBeam);
+
+    supportGroup.userData.energyBeam =
+        energyBeam;
+    // =========================================
+    // ESCENA
+    // =========================================
 
     scene.add(supportGroup);
-    reactorSupports.push(supportGroup);
+
+    reactorSupports.push(
+        supportGroup
+    );
+    // =========================================
+    // COLLIDER FÍSICO DEL SOPORTE
+    // =========================================
+
+    supportGroup.updateMatrixWorld(true);
+
+    const supportBox =
+        new THREE.Box3().setFromObject(
+            supportGroup
+        );
+
+    const supportSize =
+        new THREE.Vector3();
+
+    const supportCenter =
+        new THREE.Vector3();
+
+    supportBox.getSize(
+        supportSize
+    );
+
+    supportBox.getCenter(
+        supportCenter
+    );
+
+    const supportBody =
+        physicsWorld.createRigidBody(
+
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    supportCenter.x,
+                    supportCenter.y,
+                    supportCenter.z
+                )
+
+        );
+
+    // Collider cilíndrico para el cuerpo
+    // principal del soporte.
+    physicsWorld.createCollider(
+
+        RAPIER.ColliderDesc.cylinder(
+            supportSize.y * 0.45,
+            1.15
+        ),
+
+        supportBody
+
+    );
+
+    // Guardamos el rigid body para eliminarlo
+    // cuando el soporte sea destruido.
+    supportGroup.userData.body =
+        supportBody;
+
+    console.log(
+        `Collider creado para ${supportGroup.name}`
+    );
+
+
+
 }
 
 function createReactorSupports() {
@@ -4521,11 +4942,15 @@ function startLevel3Escape() {
     }
 
     level3ExitZone.visible = true;
-    clearObjectiveMarker();
+    setLevel3EmergencyLighting();
+    setObjectiveMarker(
+        level3ExitZone,
+        "EVAC"
+    );
     updateLevel3EscapeHud();
 
     showMissionNotification(
-        "⚠ COLAPSO INMINENTE // EVACÚA LA INSTALACIÓN"
+        "FALLO CRÍTICO // REACTOR INESTABLE // EVACÚA"
     );
 }
 
@@ -4555,6 +4980,172 @@ function checkLevel3Exit() {
     if (insideExitWidth && insideExitDepth) {
         showFinalVictory();
     }
+}
+function createLevel3ControlPanel() {
+
+    if (!controlPanelModel) {
+        console.warn(
+            "Modelo del panel de control aún no disponible"
+        );
+        return;
+    }
+
+    const panel =
+        controlPanelModel.clone(true);
+
+    panel.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    });
+
+    // Posición temporal
+    panel.position.set(
+        -5.5,
+        0,
+        - 9
+    );
+
+    // Primero probamos escala original
+    panel.scale.set(
+        0.02,
+        0.02,
+        0.02
+    );
+
+    panel.rotation.y = 0;
+
+    scene.add(panel);
+    panel.updateMatrixWorld(true);
+
+    const panelBox =
+        new THREE.Box3().setFromObject(panel);
+
+    const panelSize =
+        new THREE.Vector3();
+
+    const panelCenter =
+        new THREE.Vector3();
+
+    panelBox.getSize(panelSize);
+    panelBox.getCenter(panelCenter);
+
+    const panelBody =
+        physicsWorld.createRigidBody(
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    panelCenter.x,
+                    panelCenter.y,
+                    panelCenter.z
+                )
+        );
+
+    physicsWorld.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+            panelSize.x * 0.48,
+            panelSize.y * 0.48,
+            panelSize.z * 0.48
+        ),
+        panelBody
+    );
+
+    panel.userData.body = panelBody;
+    level3ControlPanel = panel;
+
+    console.log(
+        "Collider del panel de control creado"
+    );
+
+
+
+    console.log(
+        "Panel de control del Nivel 3 creado"
+    );
+}
+function createLevel3Machinery() {
+
+    if (!spindModel) {
+        console.warn(
+            "Modelo Spind aún no disponible"
+        );
+        return;
+    }
+
+    const spind =
+        spindModel.clone(true);
+
+    spind.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    });
+
+    // Posición temporal
+    spind.position.set(
+        10,
+        0,
+        7
+    );
+    spind.rotation.y = Math.PI / 2;
+
+    // Primero medimos con su escala original
+    spind.scale.set(
+        5,
+        5,
+        5
+    );
+
+    spind.rotation.y = 0;
+
+    scene.add(spind);
+    spind.updateMatrixWorld(true);
+
+    const spindBox =
+        new THREE.Box3().setFromObject(spind);
+
+    const spindSize =
+        new THREE.Vector3();
+
+    const spindCenter =
+        new THREE.Vector3();
+
+    spindBox.getSize(spindSize);
+    spindBox.getCenter(spindCenter);
+
+    const spindBody =
+        physicsWorld.createRigidBody(
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    spindCenter.x,
+                    spindCenter.y,
+                    spindCenter.z
+                )
+        );
+
+    physicsWorld.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+            spindSize.x * 0.48,
+            spindSize.y * 0.48,
+            spindSize.z * 0.09
+        ),
+        spindBody
+    );
+
+    spind.userData.body = spindBody;
+    level3Machinery = spind;
+
+    console.log(
+        "Collider del Spind creado"
+    );
+
+
+    console.log(
+        "Maquinaria Spind del Nivel 3 creada"
+    );
 }
 
 function updateLevel3Escape(delta) {
@@ -4682,9 +5273,36 @@ function showFinalVictory() {
 
 function clearLevel3Objects() {
 
+    if (level3Reactor) {
+        removeRigidBodyFromObject(level3Reactor);
+        scene.remove(level3Reactor);
+        level3Reactor = null;
+    }
+
+    if (level3ControlPanel) {
+        removeRigidBodyFromObject(level3ControlPanel);
+        scene.remove(level3ControlPanel);
+        level3ControlPanel = null;
+    }
+
+    if (level3Machinery) {
+        removeRigidBodyFromObject(level3Machinery);
+        scene.remove(level3Machinery);
+        level3Machinery = null;
+    }
+
     reactorSupports.forEach((support) => {
+
+        removeRigidBodyFromObject(support);
+
+        if (support.userData.energyBeam) {
+            scene.remove(support.userData.energyBeam);
+            support.userData.energyBeam.geometry.dispose();
+            support.userData.energyBeam.material.dispose();
+            support.userData.energyBeam = null;
+        }
+
         scene.remove(support);
-        disposeObject3D(support);
     });
 
     reactorSupports.length = 0;
@@ -4707,28 +5325,187 @@ function loadLevel3() {
     );
 
     currentLevel = 3;
+    setLevel3Lighting();
 
     clearActivePulses();
     clearLevelMissionObjects();
     clearDynamicProps();
     resetLevelState();
     clearLevel2Decorations();
-    levelTimeRemaining = 180;
+    levelTimeRemaining = 120;
     updateTimerHud();
+
+    createLevel3Reactor();
     createReactorSupports();
+    createLevel3ControlPanel();
+    createLevel3Machinery();
     createLevel3Exit();
+
     updateLevel3Hud();
-    gameplayActive = true;
-    startLevelTimer();
-    showMissionNotification(
-        "REACTOR ZERO // 3 SOPORTES CRÍTICOS DETECTADOS"
-    );
     moveR0ToStart({
         x: 0,
         y: 0.05,
         z: -8
     });
+    configureLevelIntro(
+        "NIVEL 3",
+        "REACTOR ZERO",
+        "NÚCLEO CRÍTICO",
+        "Destruye los 3 soportes del reactor.",
+        "0 / 3"
+    );
+    showLevelIntro(() => {
+        startLevelTimer();
+        showMissionNotification(
+            "REACTOR ZERO // 3 SOPORTES CRÍTICOS DETECTADOS"
+        );
+    });
 }
+function createLevel3Reactor() {
+
+    if (!reactorModel) {
+        console.warn(
+            "Modelo del reactor aún no disponible"
+        );
+        return;
+    }
+
+    const reactor = reactorModel.clone(true);
+
+    reactor.traverse((child) => {
+
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+
+    });
+
+    // Posición temporal en el centro de la sala
+    reactor.position.set(
+        0,
+        0,
+        0
+    );
+
+    // Escala inicial de prueba
+    reactor.scale.set(
+        0.6,
+        0.6,
+        0.6
+    );
+
+    reactor.rotation.y = 0;
+
+    level3Reactor = reactor;
+
+    scene.add(reactor);
+
+    // ===============================
+    // COLLIDER DEL REACTOR CENTRAL
+    // ===============================
+
+    const reactorBox =
+        new THREE.Box3().setFromObject(reactor);
+
+    const reactorSize =
+        new THREE.Vector3();
+
+    const reactorCenter =
+        new THREE.Vector3();
+
+    reactorBox.getSize(reactorSize);
+    reactorBox.getCenter(reactorCenter);
+
+
+    // Collider reducido para bloquear
+    // principalmente la estructura central
+    const reactorBody =
+        physicsWorld.createRigidBody(
+
+            RAPIER.RigidBodyDesc
+                .fixed()
+                .setTranslation(
+                    reactorCenter.x,
+                    reactorCenter.y,
+                    reactorCenter.z
+                )
+        );
+
+
+    physicsWorld.createCollider(
+
+        RAPIER.ColliderDesc.cuboid(
+            reactorSize.x * 0.42,
+            reactorSize.y * 0.48,
+            reactorSize.z * 0.42
+        ),
+
+        reactorBody
+    );
+
+
+    reactor.userData.body = reactorBody;
+
+    console.log(
+        "Collider del reactor central creado"
+    );
+
+    console.log(
+        "Reactor central creado"
+    );
+}
+
+
+function createTestReactorSupport() {
+
+    if (!reactorSupportModel) {
+        console.warn("Modelo del soporte aún no disponible");
+        return;
+    }
+
+    const support = reactorSupportModel.clone(true);
+
+    support.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    });
+
+    // Posición temporal para verlo claramente
+    support.position.set(-6.5, 0, -3.5);
+
+    // Primero probamos su escala original
+    support.scale.set(0.0007, 0.0007, 0.0007);
+    support.updateMatrixWorld(true);
+
+    const box = new THREE.Box3().setFromObject(support);
+    const size = new THREE.Vector3();
+
+    box.getSize(size);
+
+    console.log("Tamaño soporte:", {
+        x: size.x,
+        y: size.y,
+        z: size.z
+    });
+
+    support.rotation.y = 0;
+
+    scene.add(support);
+
+    console.log("Soporte de prueba creado");
+}
+
+
+
+
+
+
+
+
+
 
 window.addEventListener(
     "keydown",
@@ -5365,6 +6142,20 @@ function findClosestPulseHit(raycaster) {
             );
 
         });
+        if (level3Reactor) {
+
+            addClosestPulseHit(
+                hits,
+                raycaster.intersectObject(
+                    level3Reactor,
+                    true
+                ),
+                "reactor",
+                level3Reactor
+            );
+
+        }
+
     }
 
     dynamicCrates.forEach((crate) => {
@@ -5570,12 +6361,45 @@ function applyPulseImpact(hit, pulse) {
         return;
     }
 
+
+
+    if (hit.type === "reactor") {
+
+        console.log(
+            "PULSO BLOQUEADO POR EL REACTOR CENTRAL"
+        );
+
+        return;
+    }
+
     if (hit.type === "support") {
 
         const support =
             hit.target;
 
         support.userData.health--;
+        support.userData.health =
+            Math.max(
+                0,
+                support.userData.health
+            );
+
+        const supportNumber =
+            Number(
+                support.name.replace(
+                    "Reactor_Support_",
+                    ""
+                )
+            );
+
+        const supportLabel =
+            `SOPORTE ${String(supportNumber).padStart(2, "0")}`;
+
+        showMissionNotification(
+            support.userData.health <= 0
+                ? `${supportLabel} // INTEGRIDAD 0 / 3 // DESTRUIDO`
+                : `${supportLabel} // INTEGRIDAD ${support.userData.health} / 3`
+        );
 
         const coreMesh =
             support.userData.coreMesh;
@@ -5602,8 +6426,24 @@ function applyPulseImpact(hit, pulse) {
 
             setTimeout(() => {
 
+                removeRigidBodyFromObject(support);
+
+                if (support.userData.energyBeam) {
+
+                    scene.remove(
+                        support.userData.energyBeam
+                    );
+
+                    support.userData.energyBeam.geometry.dispose();
+                    support.userData.energyBeam.material.dispose();
+
+                    support.userData.energyBeam = null;
+                }
+
+                // Quitar solamente este soporte de la escena.
+                // NO hacemos dispose porque los clones del GLTF
+                // comparten recursos.
                 scene.remove(support);
-                disposeObject3D(support);
 
             }, 150);
 
@@ -6338,67 +7178,13 @@ function animate() {
             cameraLookTarget,
             0.12
         );
-        // ===============================
-        // COLISIÓN DE CÁMARA
-        // ===============================
-
-        // Dirección desde R-0 hacia la cámara
-        cameraRayDirection
-            .copy(camera.position)
-            .sub(cameraLookTarget);
-
-        const cameraDistance =
-            cameraRayDirection.length();
-
-        cameraRayDirection.normalize();
-
-        // Lanzar rayo desde R-0 hacia la cámara
-        cameraRaycaster.set(
-            cameraLookTarget,
-            cameraRayDirection
-        );
-
-        cameraRaycaster.far =
-            cameraDistance;
-
-        // Buscar paredes entre R-0 y la cámara
-        const cameraIntersections =
-            cameraRaycaster.intersectObjects(
-                cameraObstacles,
-                true
-            );
-
-        if (cameraIntersections.length > 0) {
-
-            const hitDistance =
-                cameraIntersections[0].distance;
-
-            // Pequeño margen para evitar que
-            // la cámara quede pegada a la pared
-            const safeDistance =
-                Math.max(
-                    hitDistance - 0.35,
-                    controls.minDistance
-                );
-
-            // Nueva posición antes de la pared
-            const safeCameraPosition =
-                new THREE.Vector3()
-                    .copy(cameraLookTarget)
-                    .addScaledVector(
-                        cameraRayDirection,
-                        safeDistance
-                    );
-
-            camera.position.copy(
-                safeCameraPosition
-            );
-        }
     }
 
     if (controls.enabled) {
         controls.update();
     }
+
+    updateCameraCollision();
 
     renderer.render(
         scene,
