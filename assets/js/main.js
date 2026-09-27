@@ -60,8 +60,12 @@ let r0Energy = 100;
 let lastAnomalyDamageTime = 0;
 let gameOver = false;
 const LEVEL_TIME_LIMIT = 120;
+const ENERGY_COST_PER_CORE_PULSE = 10;
 let timerAccumulator = 0;
 let levelTimeRemaining = LEVEL_TIME_LIMIT;
+let levelTimerRunning = false;
+let gameplayActive = false;
+let level2RechargeStation = null;
 const interactionPrompt =
     document.getElementById(
         "interaction-prompt"
@@ -2738,14 +2742,6 @@ startButton.addEventListener(
             )
             .classList
             .add("hidden");
-        const levelIntro =
-            document.getElementById("level-intro");
-
-        levelIntro.classList.remove("hidden");
-
-        setTimeout(() => {
-            levelIntro.classList.add("hidden");
-        }, 1000);
 
         document
             .getElementById(
@@ -2755,6 +2751,18 @@ startButton.addEventListener(
             .remove("hidden");
 
         updateLevel1ObjectiveHud();
+
+        configureLevelIntro(
+            "FACILITY // SECTOR 01",
+            "FÁBRICA",
+            "RESTAURACIÓN DE ENERGÍA",
+            "Reactiva los 3 generadores auxiliares para recuperar el suministro del sector.",
+            "0 / 3"
+        );
+
+        showLevelIntro(() => {
+            startLevelTimer();
+        });
 
     }
 );
@@ -2837,12 +2845,80 @@ function updateTimerHud() {
         formatTimer(levelTimeRemaining);
 }
 
+function startLevelTimer() {
+
+    levelTimerRunning = true;
+    timerAccumulator = 0;
+    updateTimerHud();
+
+    showMissionNotification(
+        `CRONÓMETRO INICIADO // ${formatTimer(levelTimeRemaining)}`
+    );
+}
+
+function configureLevelIntro(
+    sector,
+    title,
+    mission,
+    description,
+    objective,
+    extraLines = []
+) {
+
+    const levelIntro =
+        document.getElementById("level-intro");
+
+    levelIntro.querySelector(".intro-sector").textContent =
+        sector;
+
+    levelIntro.querySelector("h2").textContent =
+        title;
+
+    levelIntro.querySelector(".intro-mission").textContent =
+        mission;
+
+    levelIntro.querySelector("p").innerHTML =
+        [
+            description,
+            ...extraLines
+        ].join("<br>");
+
+    levelIntro.querySelector(".intro-objective").innerHTML =
+        `OBJECTIVE // <strong>${objective}</strong>`;
+}
+
+function showLevelIntro(onComplete) {
+
+    gameplayActive = false;
+    levelTimerRunning = false;
+    cancelPendingAttackPulse();
+    hideInteractionPrompt();
+
+    const levelIntro =
+        document.getElementById("level-intro");
+
+    levelIntro.classList.remove("hidden");
+
+    setTimeout(() => {
+
+        levelIntro.classList.add("hidden");
+        gameplayActive = true;
+
+        if (onComplete) {
+            onComplete();
+        }
+
+    }, 3000);
+}
+
 function resetLevelState() {
 
     cancelPendingAttackPulse();
 
     levelCompleted = false;
     gameOver = false;
+    gameplayActive = false;
+    levelTimerRunning = false;
     timerAccumulator = 0;
     levelTimeRemaining = LEVEL_TIME_LIMIT;
     r0Energy = 100;
@@ -2973,6 +3049,7 @@ function scheduleAttackPulse() {
         if (
             !levelCompleted &&
             !gameOver &&
+            gameplayActive &&
             r0
         ) {
             createEnergyPulse();
@@ -3583,7 +3660,79 @@ function updateLevel2Hud() {
         "DESTRUYE LOS NÚCLEOS INESTABLES",
         "USA [F] PULSO DE ENERGÍA"
     );
-    clearObjectiveMarker();
+    updateLevel2ObjectiveMarker();
+}
+
+function getCoreDisplayName(core) {
+
+    const coreNumber =
+        Number(
+            core.name.replace(
+                "Unstable_Core_",
+                ""
+            )
+        );
+
+    return `UNSTABLE CORE ${String(coreNumber).padStart(2, "0")}`;
+}
+
+function getNearestActiveCore() {
+
+    let nearestCore = null;
+    let nearestDistance = Infinity;
+
+    unstableCores.forEach((core) => {
+
+        if (core.userData.destroyed) {
+            return;
+        }
+
+        const distance =
+            r0
+                ? r0.position.distanceTo(core.position)
+                : 0;
+
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestCore = core;
+        }
+
+    });
+
+    return nearestCore;
+}
+
+function updateLevel2ObjectiveMarker(forceRecharge = false) {
+
+    if (currentLevel !== 2) {
+        return;
+    }
+
+    if (
+        level2RechargeStation &&
+        (
+            forceRecharge ||
+            r0Energy <= ENERGY_COST_PER_CORE_PULSE * 2
+        )
+    ) {
+        setObjectiveMarker(
+            level2RechargeStation,
+            "LAB // RECARGA"
+        );
+        return;
+    }
+
+    const nearestCore =
+        getNearestActiveCore();
+
+    if (nearestCore) {
+        setObjectiveMarker(
+            nearestCore,
+            getCoreDisplayName(nearestCore)
+        );
+    } else {
+        clearObjectiveMarker();
+    }
 }
 function clearLevel1Decorations() {
 
@@ -3890,6 +4039,7 @@ function createLevel2ResearchStations() {
         // Guardamos el cuerpo para eliminarlo
         // cuando abandonemos el Nivel 2
         labTest.userData.body = labBody;
+        level2RechargeStation = labTest;
 
 
         level2Decorations.push(labTest);
@@ -3902,6 +4052,8 @@ function createLevel2ResearchStations() {
 
 }
 function clearLevel2Decorations() {
+
+    level2RechargeStation = null;
 
     level2Decorations.forEach((object) => {
 
@@ -3931,6 +4083,8 @@ function prepareLevel1CompleteScreen() {
 
     cancelPendingAttackPulse();
     clearObjectiveMarker();
+    levelTimerRunning = false;
+    gameplayActive = false;
 
     const levelComplete =
         document.getElementById("level-complete");
@@ -3974,6 +4128,8 @@ function showLevel2Complete() {
 
     cancelPendingAttackPulse();
     clearObjectiveMarker();
+    levelTimerRunning = false;
+    gameplayActive = false;
 
     levelCompleted = true;
 
@@ -4055,13 +4211,25 @@ function loadLevel2() {
     
     createLevel2ResearchStations();
     updateLevel2Hud();
-    showMissionNotification(
-        "LABORATORIO // 5 NÚCLEOS INESTABLES DETECTADOS"
-    );
     moveR0ToStart({
         x: 0,
         y: 0.05,
         z: 8
+    });
+    configureLevelIntro(
+        "FACILITY // SECTOR 02",
+        "LABORATORIO",
+        "CONTENCIÓN DE ENERGÍA",
+        "Destruye los 5 núcleos inestables para estabilizar el laboratorio.",
+        "0 / 5",
+        [
+            "Cada pulso consume energía.",
+            "Usa la estación LAB para recargar R-0."
+        ]
+    );
+    showLevelIntro(() => {
+        updateLevel2ObjectiveMarker(true);
+        startLevelTimer();
     });
 }
 
@@ -4438,6 +4606,8 @@ function showFinalVictory() {
 
     cancelPendingAttackPulse();
     clearObjectiveMarker();
+    levelTimerRunning = false;
+    gameplayActive = false;
 
     levelCompleted = true;
     level3EscapeActive = false;
@@ -4548,6 +4718,8 @@ function loadLevel3() {
     createReactorSupports();
     createLevel3Exit();
     updateLevel3Hud();
+    gameplayActive = true;
+    startLevelTimer();
     showMissionNotification(
         "REACTOR ZERO // 3 SOPORTES CRÍTICOS DETECTADOS"
     );
@@ -4568,7 +4740,8 @@ window.addEventListener(
             key === "f" &&
             !event.repeat &&
             !levelCompleted &&
-            !gameOver
+            !gameOver &&
+            gameplayActive
         ) {
             if (playR0Attack()) {
                 scheduleAttackPulse();
@@ -4690,6 +4863,29 @@ window.addEventListener(
 
             });
 
+        }
+
+        if (
+            key === "e" &&
+            r0 &&
+            currentLevel === 2 &&
+            gameplayActive &&
+            level2RechargeStation
+        ) {
+
+            const distance =
+                r0.position.distanceTo(
+                    level2RechargeStation.position
+                );
+
+            if (distance < 3) {
+                r0Energy = 100;
+                updateEnergyHud();
+                showMissionNotification(
+                    "RECARGA COMPLETA // ENERGÍA 100%"
+                );
+                updateLevel2ObjectiveMarker();
+            }
         }
 
 
@@ -4845,9 +5041,39 @@ function resolveImmediatePulseHit(launchData) {
     return true;
 }
 
+function spendLevel2PulseEnergy() {
+
+    if (currentLevel !== 2) {
+        return true;
+    }
+
+    if (r0Energy < ENERGY_COST_PER_CORE_PULSE) {
+        showMissionNotification(
+            "ENERGÍA INSUFICIENTE // LOCALIZA LA ESTACIÓN DE RECARGA"
+        );
+        updateLevel2ObjectiveMarker(true);
+        return false;
+    }
+
+    r0Energy =
+        Math.max(
+            0,
+            r0Energy - ENERGY_COST_PER_CORE_PULSE
+        );
+
+    updateEnergyHud();
+    updateLevel2ObjectiveMarker();
+
+    return true;
+}
+
 function createEnergyPulse() {
 
     if (!r0) {
+        return;
+    }
+
+    if (!spendLevel2PulseEnergy()) {
         return;
     }
 
@@ -5186,6 +5412,17 @@ function applyPulseImpact(hit, pulse) {
 
     if (hit.type === "anomaly") {
         energyAnomalyHealth--;
+        energyAnomalyHealth =
+            Math.max(
+                0,
+                energyAnomalyHealth
+            );
+
+        showMissionNotification(
+            energyAnomalyHealth <= 0
+                ? "ANOMALÍA // INTEGRIDAD 0 / 3 // NEUTRALIZADA"
+                : `ANOMALÍA // INTEGRIDAD ${energyAnomalyHealth} / 3`
+        );
 
         console.log(
             "VIDA ANOMALÍA:",
@@ -5211,6 +5448,12 @@ function applyPulseImpact(hit, pulse) {
                     if (generator3) {
                         generator3.userData.blocked = false;
                     }
+
+                    showMissionNotification(
+                        "ANOMALÍA NEUTRALIZADA // GENERATOR 03 DISPONIBLE"
+                    );
+
+                    updateLevel1ObjectiveHud();
                 }
 
                 console.log(
@@ -5242,6 +5485,20 @@ function applyPulseImpact(hit, pulse) {
             hit.target;
 
         core.userData.health--;
+        core.userData.health =
+            Math.max(
+                0,
+                core.userData.health
+            );
+
+        const coreDisplayName =
+            getCoreDisplayName(core);
+
+        showMissionNotification(
+            core.userData.health <= 0
+                ? `${coreDisplayName} // INTEGRIDAD 0 / 3 // DESTRUIDO`
+                : `${coreDisplayName} // INTEGRIDAD ${core.userData.health} / 3`
+        );
 
         const coreMesh =
             core.userData.coreMesh;
@@ -5425,6 +5682,7 @@ function animate() {
 
     const delta = clock.getDelta();
     if (
+        levelTimerRunning &&
         !levelCompleted &&
         !gameOver &&
         !(
@@ -5440,6 +5698,7 @@ function animate() {
             levelTimeRemaining--;
             if (levelTimeRemaining <= 0) {
                 levelTimeRemaining = 0;
+                levelTimerRunning = false;
                 gameOver = true;
                 cancelPendingAttackPulse();
 
@@ -5548,6 +5807,7 @@ function animate() {
 
     if (
         r0Energy <= 0 &&
+        currentLevel !== 2 &&
         !gameOver &&
         !levelCompleted
     ) {
@@ -5573,7 +5833,7 @@ function animate() {
         r0Mixer.update(delta);
     }
 
-    if (r0 && !levelCompleted &&
+    if (r0 && gameplayActive && !levelCompleted &&
         !gameOver) {
 
         r0MoveDirection.set(0, 0, 0);
@@ -6037,6 +6297,27 @@ function animate() {
                 }
 
             });
+        }
+
+        if (
+            currentLevel === 2 &&
+            level2RechargeStation &&
+            !promptShown
+        ) {
+            const distance =
+                r0.position.distanceTo(
+                    level2RechargeStation.position
+                );
+
+            if (distance < 3) {
+                setInteractionPrompt(
+                    "E",
+                    "RECARGAR",
+                    "ENERGÍA DE R-0"
+                );
+
+                promptShown = true;
+            }
         }
 
         if (!promptShown) {
