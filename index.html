@@ -8,6 +8,8 @@
 
     <title>Reactor Zero</title>
 
+    <link rel="icon" type="image/png" href="./assets/favicon/icon.png">
+
     <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -27,6 +29,20 @@
 
 <body>
     <div id="game-container"></div>
+    <button id="pause-button" class="pause-button hidden">
+        PAUSA
+    </button>
+
+    <div id="pause-overlay" class="hidden">
+        <div class="pause-panel">
+            <span class="pause-label">SYSTEM HOLD</span>
+            <h2>JUEGO EN PAUSA</h2>
+            <button id="resume-button">
+                CONTINUAR
+            </button>
+        </div>
+    </div>
+
     <!-- Pantalla inicial -->
     <div id="start-screen">
 

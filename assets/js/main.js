@@ -63,6 +63,7 @@ const LEVEL3_ESCAPE_TIME = 30;
 let level3EscapeActive = false;
 let level3EscapeTimeRemaining = LEVEL3_ESCAPE_TIME;
 let level3ExitZone = null;
+let level3ExitModelOriginal = null;
 let objectiveMarker = null;
 let objectiveMarkerTarget = null;
 let objectiveMarkerLabel = "";
@@ -72,12 +73,16 @@ let score = 0;
 let level2RechargeCount = 0;
 let lastAnomalyDamageTime = 0;
 let gameOver = false;
-const LEVEL_TIME_LIMIT = 120;
+const LEVEL_TIME_LIMIT = 70;
 const ENERGY_COST_PER_CORE_PULSE = 10;
 let timerAccumulator = 0;
 let levelTimeRemaining = LEVEL_TIME_LIMIT;
 let levelTimerRunning = false;
 let gameplayActive = false;
+let isPaused = false;
+let isActionLocked = false;
+let actionLockReleaseTimeout = null;
+let actionLockAudio = null;
 let level2RechargeStation = null;
 const interactionPrompt =
     document.getElementById(
@@ -136,14 +141,55 @@ const cameraFollowPosition =
     new THREE.Vector3();
 const cameraLookTarget =
     new THREE.Vector3();
+const cameraPreviousTarget =
+    new THREE.Vector3();
+const cameraTargetDelta =
+    new THREE.Vector3();
+const cameraRearForward =
+    new THREE.Vector3();
+const cameraRearDesiredPosition =
+    new THREE.Vector3();
+const cameraManualGraceTime = 900;
+const cameraRearAlignStrength = 0.015;
+const cameraRearHeightOffset = 1.7;
+const cameraRearDistance = 7;
+let lastManualCameraInputTime = 0;
 // Detección de obstáculos entre R-0 y la cámara
 const cameraRaycaster = new THREE.Raycaster();
 
 const cameraRayDirection =
     new THREE.Vector3();
+const cameraOcclusionFocus =
+    new THREE.Vector3();
+const cameraOcclusionDirection =
+    new THREE.Vector3();
+const cameraOcclusionSafePosition =
+    new THREE.Vector3();
 
 const cameraObstacles = [];
+const cameraObstacleMeshes = [];
 const cameraCollisionMargin = 0.35;
+const cameraOcclusionMargin = 0.45;
+
+function registerCameraObstacle(object) {
+
+    if (!cameraObstacles.includes(object)) {
+        cameraObstacles.push(object);
+    }
+
+    object.traverse((child) => {
+
+        if (
+            child.isMesh &&
+            child.geometry &&
+            !child.isSprite &&
+            !child.userData.ignoreCameraOcclusion &&
+            !cameraObstacleMeshes.includes(child)
+        ) {
+            cameraObstacleMeshes.push(child);
+        }
+    });
+}
 
 function createCameraBoundaryObstacles() {
 
@@ -194,11 +240,31 @@ function createCameraBoundaryObstacles() {
         obstacle.userData.cameraBoundary = true;
 
         scene.add(obstacle);
-        cameraObstacles.push(obstacle);
+        registerCameraObstacle(obstacle);
     });
 }
 
 createCameraBoundaryObstacles();
+
+function removeCameraObstacle(object) {
+
+    const index =
+        cameraObstacles.indexOf(object);
+
+    if (index !== -1) {
+        cameraObstacles.splice(index, 1);
+    }
+
+    object.traverse((child) => {
+
+        const meshIndex =
+            cameraObstacleMeshes.indexOf(child);
+
+        if (meshIndex !== -1) {
+            cameraObstacleMeshes.splice(meshIndex, 1);
+        }
+    });
+}
 
 await RAPIER.init();
 
@@ -366,7 +432,10 @@ const audioSystem = (() => {
         evacuationAlarm: 0.45,
         generatorActivate: 0.55,
         objectiveDestroyed: 0.60,
-        victory: 0.60
+        victory: 0.60,
+        lostEnergy: 0.55,
+        gameOver: 0.65,
+        button: 0.45
     };
 
     const musicTracks = {
@@ -382,7 +451,10 @@ const audioSystem = (() => {
         evacuationAlarm: new Audio("./assets/sounds/sfx/evacuation_alarm.mp3"),
         generatorActivate: new Audio("./assets/sounds/sfx/generator_activate.mp3"),
         objectiveDestroyed: new Audio("./assets/sounds/sfx/objective_destroyed.mp3"),
-        victory: new Audio("./assets/sounds/sfx/victory.mp3")
+        victory: new Audio("./assets/sounds/sfx/victory.mp3"),
+        lostEnergy: new Audio("./assets/sounds/sfx/lost-energy.mp3"),
+        gameOver: new Audio("./assets/sounds/sfx/game-over.mp3"),
+        button: new Audio("./assets/sounds/sfx/buttom.mp3")
     };
 
     let unlocked = false;
@@ -390,6 +462,10 @@ const audioSystem = (() => {
     let currentMusic = null;
     let alarmPlaying = false;
     let victoryPlayed = false;
+    let gameOverPlayed = false;
+    let musicPausedByGame = false;
+    let alarmPausedByGame = false;
+    const activeSfxInstances = {};
 
     Object
         .values(musicTracks)
@@ -414,6 +490,8 @@ const audioSystem = (() => {
         if (playPromise && playPromise.catch) {
             playPromise.catch(() => { });
         }
+
+        return playPromise;
     };
 
     const stopAudio = (audio) => {
@@ -452,12 +530,29 @@ const audioSystem = (() => {
         safePlay(currentMusic);
     };
 
+    const trackSfxInstance = (key, instance) => {
+
+        if (!activeSfxInstances[key]) {
+            activeSfxInstances[key] = new Set();
+        }
+
+        activeSfxInstances[key].add(instance);
+
+        instance.addEventListener(
+            "ended",
+            () => {
+                activeSfxInstances[key].delete(instance);
+            },
+            { once: true }
+        );
+    };
+
     const playSfx = (key) => {
         const source =
             sfx[key];
 
         if (!source || !unlocked) {
-            return;
+            return null;
         }
 
         const instance =
@@ -466,7 +561,39 @@ const audioSystem = (() => {
         instance.volume =
             source.volume;
 
-        safePlay(instance);
+        trackSfxInstance(key, instance);
+        instance._playPromise =
+            safePlay(instance);
+
+        return instance;
+    };
+
+    const stopSfx = (key) => {
+        const instances =
+            activeSfxInstances[key];
+
+        if (!instances) {
+            return;
+        }
+
+        instances.forEach((instance) => {
+            stopAudio(instance);
+        });
+
+        instances.clear();
+    };
+
+    const playButtonClick = () => {
+        const buttonSound =
+            sfx.button;
+
+        if (!buttonSound || !unlocked) {
+            return;
+        }
+
+        buttonSound.pause();
+        buttonSound.currentTime = 0;
+        safePlay(buttonSound);
     };
 
     const startEvacAlarm = () => {
@@ -475,6 +602,10 @@ const audioSystem = (() => {
         }
 
         alarmPlaying = true;
+        if (currentMusic) {
+            currentMusic.volume = 0.10;
+        }
+        sfx.evacuationAlarm.volume = 0.70;
         sfx.evacuationAlarm.currentTime = 0;
         safePlay(sfx.evacuationAlarm);
     };
@@ -486,6 +617,12 @@ const audioSystem = (() => {
 
         stopAudio(sfx.evacuationAlarm);
         alarmPlaying = false;
+        sfx.evacuationAlarm.volume =
+            sfxVolumes.evacuationAlarm;
+
+        if (currentMusic) {
+            currentMusic.volume = musicVolume;
+        }
     };
 
     return {
@@ -501,6 +638,60 @@ const audioSystem = (() => {
         playSfx,
         startEvacAlarm,
         stopEvacAlarm,
+        stopSfx,
+        playButtonClick,
+        pauseSfxInstance(audio) {
+            if (audio && !audio.paused) {
+                audio.pause();
+            }
+        },
+        resumeSfxInstance(audio) {
+            if (audio && audio.paused && !audio.ended) {
+                safePlay(audio);
+            }
+        },
+        stopSfxInstance(audio) {
+            if (audio) {
+                stopAudio(audio);
+            }
+        },
+        pauseGameplayAudio() {
+            musicPausedByGame =
+                Boolean(currentMusic && !currentMusic.paused);
+            alarmPausedByGame =
+                Boolean(alarmPlaying && !sfx.evacuationAlarm.paused);
+
+            if (musicPausedByGame) {
+                currentMusic.pause();
+            }
+
+            if (alarmPausedByGame) {
+                sfx.evacuationAlarm.pause();
+            }
+        },
+        resumeGameplayAudio() {
+            if (musicPausedByGame && currentMusic) {
+                safePlay(currentMusic);
+            }
+
+            if (alarmPausedByGame && alarmPlaying) {
+                safePlay(sfx.evacuationAlarm);
+            }
+
+            musicPausedByGame = false;
+            alarmPausedByGame = false;
+        },
+        playGameOver() {
+            if (gameOverPlayed || !unlocked) {
+                return;
+            }
+
+            gameOverPlayed = true;
+            stopSfx("lostEnergy");
+            stopMusic();
+            stopEvacAlarm();
+            playSfx("gameOver");
+        },
         playVictory() {
             if (victoryPlayed || !unlocked) {
                 return;
@@ -2004,7 +2195,7 @@ loader.load(
             );
 
             scene.add(wall);
-            cameraObstacles.push(wall);
+            registerCameraObstacle(wall);
         }
         // ===============================
         // PARED LATERAL IZQUIERDA
@@ -2030,7 +2221,7 @@ loader.load(
         }
 
         scene.add(leftWallGroup);
-        cameraObstacles.push(leftWallGroup);
+        registerCameraObstacle(leftWallGroup);
         // ===============================
         // PARED LATERAL DERECHA
         // ===============================
@@ -2054,7 +2245,7 @@ loader.load(
         }
 
         scene.add(rightWallGroup);
-        cameraObstacles.push(rightWallGroup);
+        registerCameraObstacle(rightWallGroup);
 
         // ===============================
         // PARED FRONTAL
@@ -2262,10 +2453,12 @@ function rebuildFrontFacade() {
     }
 
     if (frontLeftWallGroupModel) {
+        removeCameraObstacle(frontLeftWallGroupModel);
         scene.remove(frontLeftWallGroupModel);
     }
 
     if (frontRightWallGroupModel) {
+        removeCameraObstacle(frontRightWallGroupModel);
         scene.remove(frontRightWallGroupModel);
     }
 
@@ -2333,10 +2526,8 @@ function rebuildFrontFacade() {
 
     scene.add(frontLeftWallGroupModel);
     scene.add(frontRightWallGroupModel);
-    cameraObstacles.push(
-        frontLeftWallGroupModel,
-        frontRightWallGroupModel
-    );
+    registerCameraObstacle(frontLeftWallGroupModel);
+    registerCameraObstacle(frontRightWallGroupModel);
     // Collider actualizado para la pared frontal derecha reconstruida
     frontRightWallGroupModel.updateMatrixWorld(true);
 
@@ -3861,6 +4052,27 @@ loader.load(
 
     }
 );
+loader.load(
+    "assets/models/environment/level3/scene.gltf",
+    (gltf) => {
+
+        level3ExitModelOriginal = gltf.scene;
+
+        console.log(
+            "Modelo EXIT del Nivel 3 cargado correctamente"
+        );
+
+    },
+    undefined,
+    (error) => {
+
+        console.error(
+            "Error al cargar el modelo EXIT del Nivel 3:",
+            error
+        );
+
+    }
+);
 
 /* ===============================
    CONTROLES DE CÁMARA
@@ -3897,6 +4109,28 @@ controls.target.set(
     0,
     1.5,
     0
+);
+
+const registerManualCameraInput = () => {
+    lastManualCameraInputTime =
+        performance.now();
+};
+
+renderer.domElement.addEventListener(
+    "pointerdown",
+    registerManualCameraInput
+);
+
+renderer.domElement.addEventListener(
+    "wheel",
+    registerManualCameraInput,
+    { passive: true }
+);
+
+renderer.domElement.addEventListener(
+    "touchstart",
+    registerManualCameraInput,
+    { passive: true }
 );
 /* ===============================
    BOTÓN INICIAR
@@ -3942,6 +4176,7 @@ startButton.addEventListener(
     () => {
 
         audioSystem.unlock();
+        playButtonSound();
         audioSystem.playLevelMusic(1);
 
         document
@@ -4011,12 +4246,168 @@ const gameOverTitle =
 
 const gameOverMessage =
     document.getElementById("game-over-message");
+const pauseButton =
+    document.getElementById("pause-button");
+const pauseOverlay =
+    document.getElementById("pause-overlay");
+const resumeButton =
+    document.getElementById("resume-button");
 const restartButton =
     document.getElementById("restart-button");
+
+function playButtonSound() {
+    audioSystem.playButtonClick();
+}
+
+function clearActionLock(stopAudio = false) {
+
+    if (actionLockReleaseTimeout !== null) {
+        clearTimeout(actionLockReleaseTimeout);
+        actionLockReleaseTimeout = null;
+    }
+
+    if (stopAudio && actionLockAudio) {
+        audioSystem.stopSfxInstance(actionLockAudio);
+    }
+
+    actionLockAudio = null;
+    isActionLocked = false;
+}
+
+function lockActionUntilAudioEnds(audio, fallbackDuration = 2500) {
+
+    clearActionLock();
+    isActionLocked = true;
+    actionLockAudio = audio;
+    r0Keys.w = false;
+    r0Keys.a = false;
+    r0Keys.s = false;
+    r0Keys.d = false;
+    r0Keys.shift = false;
+    r0Keys.f = false;
+    cancelPendingAttackPulse();
+    if (r0) {
+        playR0Action("idle");
+    }
+
+    const unlock = () => {
+        clearActionLock();
+    };
+
+    if (audio) {
+        audio.addEventListener(
+            "ended",
+            unlock,
+            { once: true }
+        );
+
+        audio.addEventListener(
+            "error",
+            unlock,
+            { once: true }
+        );
+
+        if (audio._playPromise && audio._playPromise.catch) {
+            audio._playPromise.catch(unlock);
+        } else {
+            actionLockReleaseTimeout =
+                setTimeout(
+                    unlock,
+                    fallbackDuration
+                );
+        }
+    } else {
+        actionLockReleaseTimeout =
+            setTimeout(
+                unlock,
+                fallbackDuration
+            );
+    }
+}
+
+function updatePauseButtonVisibility() {
+
+    const canPause =
+        gameplayActive &&
+        !gameOver &&
+        !levelCompleted &&
+        !isPaused;
+
+    pauseButton
+        .classList
+        .toggle("hidden", !canPause);
+}
+
+function pauseGame() {
+
+    if (
+        isPaused ||
+        !gameplayActive ||
+        gameOver ||
+        levelCompleted
+    ) {
+        return;
+    }
+
+    isPaused = true;
+    r0Keys.w = false;
+    r0Keys.a = false;
+    r0Keys.s = false;
+    r0Keys.d = false;
+    r0Keys.shift = false;
+    r0Keys.f = false;
+    cancelPendingAttackPulse();
+    isR0Attacking = false;
+    if (r0) {
+        playR0Action("idle");
+    }
+    hideInteractionPrompt();
+    audioSystem.pauseGameplayAudio();
+    audioSystem.pauseSfxInstance(actionLockAudio);
+    pauseOverlay.classList.remove("hidden");
+    updatePauseButtonVisibility();
+}
+
+function resumeGame() {
+
+    if (!isPaused) {
+        return;
+    }
+
+    isPaused = false;
+    pauseOverlay.classList.add("hidden");
+    audioSystem.resumeGameplayAudio();
+    audioSystem.resumeSfxInstance(actionLockAudio);
+    updatePauseButtonVisibility();
+}
+
+function triggerGameOverAudio() {
+    clearActionLock(true);
+    audioSystem.playGameOver();
+    updatePauseButtonVisibility();
+}
+
 restartButton.addEventListener(
     "click",
     () => {
+        playButtonSound();
         window.location.reload();
+    }
+);
+
+pauseButton.addEventListener(
+    "click",
+    () => {
+        playButtonSound();
+        pauseGame();
+    }
+);
+
+resumeButton.addEventListener(
+    "click",
+    () => {
+        playButtonSound();
+        resumeGame();
     }
 );
 
@@ -4027,6 +4418,8 @@ const nextLevelButton =
 nextLevelButton.addEventListener(
     "click",
     () => {
+
+        playButtonSound();
 
         if (currentLevel === 1) {
             loadLevel2();
@@ -4178,6 +4571,8 @@ function showLevelIntro(onComplete) {
             onComplete();
         }
 
+        updatePauseButtonVisibility();
+
     }, 3000);
 }
 
@@ -4187,6 +4582,8 @@ function resetLevelState() {
 
     levelCompleted = false;
     gameOver = false;
+    isPaused = false;
+    clearActionLock(true);
     gameplayActive = false;
     levelTimerRunning = false;
     timerAccumulator = 0;
@@ -4202,6 +4599,12 @@ function resetLevelState() {
         .classList
         .add("hidden");
 
+    pauseOverlay
+        .classList
+        .add("hidden");
+
+    updatePauseButtonVisibility();
+
     document
         .getElementById("level-complete")
         .classList
@@ -4216,7 +4619,10 @@ function resetLevelState() {
         .add("hidden");
 }
 
-function moveR0ToStart(position) {
+function moveR0ToStart(
+    position,
+    cameraPosition = null
+) {
 
     if (playerBody) {
         playerBody.setNextKinematicTranslation(position);
@@ -4238,6 +4644,14 @@ function moveR0ToStart(position) {
         position.y + 1.5,
         position.z
     );
+
+    if (cameraPosition) {
+        camera.position.set(
+            cameraPosition.x,
+            cameraPosition.y,
+            cameraPosition.z
+        );
+    }
 }
 
 function clearActivePulses() {
@@ -4547,7 +4961,10 @@ function createObjectiveMarker() {
     return markerGroup;
 }
 
-function createSupportLabelSprite(text) {
+function createSupportLabelSprite(
+    text,
+    yPosition = 3.05
+) {
 
     const canvas =
         document.createElement("canvas");
@@ -4588,7 +5005,7 @@ function createSupportLabelSprite(text) {
         1
     );
 
-    sprite.position.y = 3.05;
+    sprite.position.y = yPosition;
 
     return sprite;
 }
@@ -4648,7 +5065,7 @@ function updateCameraCollision() {
 
     if (
         !r0 ||
-        cameraObstacles.length === 0
+        cameraObstacleMeshes.length === 0
     ) {
         return;
     }
@@ -4676,11 +5093,64 @@ function updateCameraCollision() {
 
     const intersections =
         cameraRaycaster.intersectObjects(
-            cameraObstacles,
-            true
+            cameraObstacleMeshes,
+            false
         );
 
     if (intersections.length === 0) {
+        cameraOcclusionFocus.set(
+            r0.position.x,
+            r0.position.y + 1.2,
+            r0.position.z
+        );
+
+        cameraOcclusionDirection
+            .copy(camera.position)
+            .sub(cameraOcclusionFocus);
+
+        const occlusionDistance =
+            cameraOcclusionDirection.length();
+
+        if (occlusionDistance <= 0.001) {
+            return;
+        }
+
+        cameraOcclusionDirection.normalize();
+
+        cameraRaycaster.set(
+            cameraOcclusionFocus,
+            cameraOcclusionDirection
+        );
+
+        cameraRaycaster.near = 0.05;
+        cameraRaycaster.far = occlusionDistance;
+
+        const occlusionHits =
+            cameraRaycaster.intersectObjects(
+                cameraObstacleMeshes,
+                false
+            );
+
+        if (occlusionHits.length === 0) {
+            return;
+        }
+
+        const occlusionSafeDistance =
+            Math.max(
+                occlusionHits[0].distance - cameraOcclusionMargin,
+                1.15
+            );
+
+        camera.position.lerp(
+            cameraOcclusionSafePosition
+                .copy(cameraOcclusionFocus)
+                .addScaledVector(
+                    cameraOcclusionDirection,
+                    occlusionSafeDistance
+                ),
+            0.55
+        );
+
         return;
     }
 
@@ -5546,12 +6016,56 @@ function clearLevel2Decorations() {
 }
 
 
+function updateFinalAuthorCredit(visible) {
+
+    const levelComplete =
+        document.getElementById("level-complete");
+
+    if (!levelComplete) {
+        return;
+    }
+
+    let authorCredit =
+        levelComplete.querySelector(".complete-author-credit");
+
+    if (!authorCredit) {
+        authorCredit =
+            document.createElement("div");
+        authorCredit.className =
+            "complete-author-credit hidden";
+        authorCredit.innerHTML =
+            "<span>AUTOR</span><strong>MARICRUZ PINEDA LARA</strong>";
+
+        const footer =
+            levelComplete.querySelector(".complete-footer");
+        const terminal =
+            levelComplete.querySelector(".complete-terminal");
+
+        if (footer && terminal) {
+            terminal
+                .insertBefore(
+                    authorCredit,
+                    footer
+                );
+        }
+    }
+
+    authorCredit
+        .classList
+        .toggle(
+            "hidden",
+            !visible
+        );
+}
+
+
 function prepareLevel1CompleteScreen() {
 
     cancelPendingAttackPulse();
     clearObjectiveMarker();
     levelTimerRunning = false;
     gameplayActive = false;
+    updatePauseButtonVisibility();
 
     const levelComplete =
         document.getElementById("level-complete");
@@ -5580,6 +6094,7 @@ function prepareLevel1CompleteScreen() {
         "LEVEL 01 // FACTORY";
     levelComplete.querySelector(".complete-footer span:last-child").textContent =
         "RECOVERY CONFIRMED";
+    updateFinalAuthorCredit(false);
 
     const extraRow =
         levelComplete.querySelector(".recovery-extra");
@@ -5599,6 +6114,7 @@ function showLevel2Complete() {
     gameplayActive = false;
 
     levelCompleted = true;
+    updatePauseButtonVisibility();
 
     const levelComplete =
         document.getElementById("level-complete");
@@ -5648,6 +6164,7 @@ function showLevel2Complete() {
         "LEVEL 02 // LABORATORY";
     levelComplete.querySelector(".complete-footer span:last-child").textContent =
         "NEXT SECTOR // REACTOR ZERO";
+    updateFinalAuthorCredit(false);
     nextLevelButton.innerHTML =
         "<span>&#9654;</span> ACCEDER A REACTOR ZERO";
 
@@ -5685,7 +6202,7 @@ function loadLevel2() {
     moveR0ToStart({
         x: 0,
         y: 0.05,
-        z: 8
+        z: 0
     });
     configureLevelIntro(
         "FACILITY // SECTOR 02",
@@ -5779,6 +6296,18 @@ function createReactorSupport(position, index) {
     supportGroup.name =
         `Reactor_Support_${index + 1}`;
 
+    supportGroup.updateMatrixWorld(true);
+
+    const visualSupportBox =
+        new THREE.Box3().setFromObject(
+            supportModel
+        );
+
+    const supportLabelY =
+        visualSupportBox.max.y -
+        supportGroup.position.y +
+        0.85;
+
 
     // =========================================
     // DATOS DE GAMEPLAY
@@ -5793,7 +6322,8 @@ function createReactorSupport(position, index) {
 
     const supportLabel =
         createSupportLabelSprite(
-            `REACTOR SUPPORT ${String(index + 1).padStart(2, "0")}`
+            `REACTOR SUPPORT ${String(index + 1).padStart(2, "0")}`,
+            supportLabelY
         );
 
     supportGroup.add(supportLabel);
@@ -5868,6 +6398,7 @@ function createReactorSupport(position, index) {
     reactorSupports.push(
         supportGroup
     );
+    registerCameraObstacle(supportGroup);
     // =========================================
     // COLLIDER FÍSICO DEL SOPORTE
     // =========================================
@@ -6077,52 +6608,11 @@ function createLevel3Exit() {
 
     light.position.y = 1.2;
 
-    const canvas =
-        document.createElement("canvas");
-
-    canvas.width = 384;
-    canvas.height = 128;
-
-    const context =
-        canvas.getContext("2d");
-
-    context.fillStyle = "rgba(0, 12, 14, 0.78)";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.strokeStyle = "#00ffcc";
-    context.lineWidth = 5;
-    context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-    context.fillStyle = "#00ffcc";
-    context.font = "bold 62px monospace";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText("EVAC", canvas.width / 2, canvas.height / 2);
-
-    const signTexture =
-        new THREE.CanvasTexture(canvas);
-
-    const sign =
-        new THREE.Sprite(
-            new THREE.SpriteMaterial({
-                map: signTexture,
-                transparent: true,
-                depthWrite: false,
-                toneMapped: false
-            })
-        );
-
-    sign.position.y = 2.75;
-    sign.scale.set(
-        2.7,
-        0.9,
-        1
-    );
-
     exitGroup.add(marker);
     exitGroup.add(leftPost);
     exitGroup.add(rightPost);
     exitGroup.add(topBar);
     exitGroup.add(light);
-    exitGroup.add(sign);
 
     const exitPosition =
         getLevel3ExitPosition();
@@ -6133,12 +6623,75 @@ function createLevel3Exit() {
         exitPosition.z
     );
 
+    if (level3ExitModelOriginal) {
+
+        const exitModel =
+            level3ExitModelOriginal.clone(true);
+
+        exitModel.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = false;
+                child.receiveShadow = true;
+            }
+        });
+
+        exitModel.rotation.y = Math.PI / 2;
+        exitGroup.add(exitModel);
+        exitModel.updateMatrixWorld(true);
+
+        const initialBox =
+            new THREE.Box3().setFromObject(exitModel);
+        const initialSize =
+            new THREE.Vector3();
+
+        initialBox.getSize(initialSize);
+
+        const largestFootprint =
+            Math.max(
+                initialSize.x,
+                initialSize.z,
+                0.001
+            );
+
+        const exitScale =
+            2.8 / largestFootprint;
+
+        exitModel.scale.setScalar(exitScale);
+        exitModel.updateMatrixWorld(true);
+
+        const scaledBox =
+            new THREE.Box3().setFromObject(exitModel);
+        const scaledCenter =
+            new THREE.Vector3();
+        const scaledSize =
+            new THREE.Vector3();
+
+        scaledBox.getCenter(scaledCenter);
+        scaledBox.getSize(scaledSize);
+
+        const exitVisualLift =
+            Math.max(
+                scaledSize.y * 0.9,
+                3.0
+            );
+
+        exitModel.position.x -= scaledCenter.x;
+        exitModel.position.z -= scaledCenter.z;
+        exitModel.position.y +=
+            exitVisualLift - scaledBox.min.y;
+        // Adelantar visualmente el cartel EXIT
+        exitModel.position.z -= 0.6;
+
+        exitGroup.userData.exitModel =
+            exitModel;
+    }
+
     exitGroup.visible = false;
     exitGroup.userData.halfWidth = 1.35;
     exitGroup.userData.halfDepth = 0.75;
     exitGroup.userData.marker = marker;
     exitGroup.userData.light = light;
-    exitGroup.userData.sign = sign;
+    exitGroup.userData.sign = null;
 
     scene.add(exitGroup);
     level3ExitZone = exitGroup;
@@ -6264,6 +6817,7 @@ function createLevel3ControlPanel() {
 
     panel.userData.body = panelBody;
     level3ControlPanel = panel;
+    registerCameraObstacle(panel);
 
     console.log(
         "Collider del panel de control creado"
@@ -6348,6 +6902,7 @@ function createLevel3Machinery() {
 
     spind.userData.body = spindBody;
     level3Machinery = spind;
+    registerCameraObstacle(spind);
 
     console.log(
         "Collider del Spind creado"
@@ -6373,13 +6928,13 @@ function updateLevel3Escape(delta) {
     level3EscapeTimeRemaining -= delta;
 
     if (level3ExitZone) {
-        level3ExitZone.rotation.y += 1.6 * delta;
-
         const evacPulse =
             0.75 +
             Math.sin(performance.now() * 0.008) * 0.18;
 
         if (level3ExitZone.userData.marker) {
+            level3ExitZone.userData.marker.rotation.y +=
+                1.6 * delta;
             level3ExitZone.userData.marker.material.opacity =
                 0.28 + evacPulse * 0.18;
         }
@@ -6397,6 +6952,7 @@ function updateLevel3Escape(delta) {
         cancelPendingAttackPulse();
         level3EscapeActive = false;
         audioSystem.stopEvacAlarm();
+        triggerGameOverAudio();
 
         gameOverTitle.textContent =
             "TIEMPO AGOTADO";
@@ -6426,6 +6982,7 @@ function showFinalVictory() {
     audioSystem.playVictory();
     levelTimerRunning = false;
     gameplayActive = false;
+    updatePauseButtonVisibility();
 
     const evacuationBonus =
         Math.max(
@@ -6503,6 +7060,7 @@ function showFinalVictory() {
         "MISSION COMPLETE";
     levelComplete.querySelector(".complete-footer span:last-child").textContent =
         "REACTOR ZERO STABILIZED";
+    updateFinalAuthorCredit(true);
     nextLevelButton.innerHTML =
         "<span>&#8635;</span> REINICIAR MISIÓN";
 
@@ -6517,18 +7075,21 @@ function clearLevel3Objects() {
 
     if (level3Reactor) {
         removeRigidBodyFromObject(level3Reactor);
+        removeCameraObstacle(level3Reactor);
         scene.remove(level3Reactor);
         level3Reactor = null;
     }
 
     if (level3ControlPanel) {
         removeRigidBodyFromObject(level3ControlPanel);
+        removeCameraObstacle(level3ControlPanel);
         scene.remove(level3ControlPanel);
         level3ControlPanel = null;
     }
 
     if (level3Machinery) {
         removeRigidBodyFromObject(level3Machinery);
+        removeCameraObstacle(level3Machinery);
         scene.remove(level3Machinery);
         level3Machinery = null;
     }
@@ -6536,6 +7097,7 @@ function clearLevel3Objects() {
     reactorSupports.forEach((support) => {
 
         removeRigidBodyFromObject(support);
+        removeCameraObstacle(support);
 
         if (support.userData.energyBeam) {
             scene.remove(support.userData.energyBeam);
@@ -6559,6 +7121,13 @@ function clearLevel3Objects() {
         LEVEL3_ESCAPE_TIME;
 
     if (level3ExitZone) {
+        if (level3ExitZone.userData.exitModel) {
+            level3ExitZone.remove(
+                level3ExitZone.userData.exitModel
+            );
+            level3ExitZone.userData.exitModel = null;
+        }
+
         scene.remove(level3ExitZone);
         disposeObject3D(level3ExitZone);
         level3ExitZone = null;
@@ -6596,7 +7165,11 @@ function loadLevel3() {
     moveR0ToStart({
         x: 0,
         y: 0.05,
-        z: -8
+        z: -9
+    }, {
+        x: 0,
+        y: 5.2,
+        z: -2
     });
     configureLevelIntro(
         "NIVEL 3",
@@ -6649,6 +7222,7 @@ function createLevel3Reactor() {
     reactor.rotation.y = 0;
 
     level3Reactor = reactor;
+    registerCameraObstacle(reactor);
 
     scene.add(reactor);
 
@@ -6769,6 +7343,8 @@ window.addEventListener(
             !event.repeat &&
             !levelCompleted &&
             !gameOver &&
+            !isPaused &&
+            !isActionLocked &&
             gameplayActive
         ) {
             if (playR0Attack()) {
@@ -6778,7 +7354,13 @@ window.addEventListener(
         }
 
 
-        if (key === "e" && r0 && currentLevel === 1) {
+        if (
+            key === "e" &&
+            r0 &&
+            currentLevel === 1 &&
+            !isPaused &&
+            !isActionLocked
+        ) {
 
             generators.forEach((generator) => {
 
@@ -6900,6 +7482,8 @@ window.addEventListener(
             r0 &&
             currentLevel === 2 &&
             gameplayActive &&
+            !isPaused &&
+            !isActionLocked &&
             level2RechargeStation
         ) {
 
@@ -6919,7 +7503,13 @@ window.addEventListener(
 
                 r0Energy = 100;
                 updateEnergyHud();
-                audioSystem.playSfx("energyRecharge");
+                const rechargeAudio =
+                    audioSystem.playSfx("energyRecharge");
+
+                lockActionUntilAudioEnds(
+                    rechargeAudio,
+                    3000
+                );
 
                 subtractScore(
                     rechargePenalty,
@@ -6931,11 +7521,11 @@ window.addEventListener(
         }
 
 
-        if (key in r0Keys) {
+        if (!isPaused && !isActionLocked && key in r0Keys) {
             r0Keys[key] = true;
         }
 
-        if (event.key === "Shift") {
+        if (!isPaused && !isActionLocked && event.key === "Shift") {
             r0Keys.shift = true;
         }
 
@@ -7753,6 +8343,7 @@ function applyPulseImpact(hit, pulse) {
                 // Quitar solamente este soporte de la escena.
                 // NO hacemos dispose porque los clones del GLTF
                 // comparten recursos.
+                removeCameraObstacle(support);
                 scene.remove(support);
 
             }, 150);
@@ -7831,6 +8422,20 @@ function animate() {
 
 
     const delta = clock.getDelta();
+
+    if (isPaused) {
+        if (controls.enabled) {
+            controls.update();
+        }
+
+        renderer.render(
+            scene,
+            camera
+        );
+
+        return;
+    }
+
     if (
         levelTimerRunning &&
         !levelCompleted &&
@@ -7851,6 +8456,7 @@ function animate() {
                 levelTimerRunning = false;
                 gameOver = true;
                 cancelPendingAttackPulse();
+                triggerGameOverAudio();
 
                 gameOverTitle.textContent =
                     "TIEMPO AGOTADO";
@@ -7904,7 +8510,12 @@ function animate() {
 
     updateLevel3Escape(delta);
 
-    if (energyAnomaly && r0 && currentLevel === 1) {
+    if (
+        energyAnomaly &&
+        r0 &&
+        currentLevel === 1 &&
+        !gameOver
+    ) {
 
         const distanceToAnomaly =
             r0.position.distanceTo(
@@ -7921,6 +8532,7 @@ function animate() {
                 lastAnomalyDamageTime >= 1000
             ) {
                 r0Energy -= 10;
+                audioSystem.playSfx("lostEnergy");
 
                 if (r0Energy < 0) {
                     r0Energy = 0;
@@ -7931,6 +8543,7 @@ function animate() {
                 ) {
                     gameOver = true;
                     cancelPendingAttackPulse();
+                    triggerGameOverAudio();
                     gameOverScreen.classList.remove("hidden");
 
                     console.log(
@@ -7963,6 +8576,7 @@ function animate() {
     ) {
         gameOver = true;
         cancelPendingAttackPulse();
+        triggerGameOverAudio();
 
         gameOverTitle.textContent =
             "ENERGÍA AGOTADA";
@@ -8484,10 +9098,67 @@ function animate() {
             r0.position.z
         );
 
+        cameraPreviousTarget.copy(
+            controls.target
+        );
+
         controls.target.lerp(
             cameraLookTarget,
             0.12
         );
+
+        cameraTargetDelta
+            .copy(controls.target)
+            .sub(cameraPreviousTarget);
+
+        camera.position.add(
+            cameraTargetDelta
+        );
+
+        const cameraManualGraceActive =
+            performance.now() -
+            lastManualCameraInputTime <
+            cameraManualGraceTime;
+
+        const shouldRealignCameraBehindR0 =
+            gameplayActive &&
+            !levelCompleted &&
+            !gameOver &&
+            !isPaused &&
+            !isActionLocked &&
+            r0MoveDirection.lengthSq() > 0.0001 &&
+            !cameraManualGraceActive;
+
+        if (shouldRealignCameraBehindR0) {
+
+            const currentCameraDistance =
+                THREE.MathUtils.clamp(
+                    cameraRearDistance,
+                    controls.minDistance,
+                    controls.maxDistance
+                );
+
+            cameraRearForward
+                .set(
+                    Math.sin(r0.rotation.y),
+                    0,
+                    Math.cos(r0.rotation.y)
+                )
+                .normalize();
+
+            cameraRearDesiredPosition.set(
+                r0.position.x -
+                cameraRearForward.x * currentCameraDistance,
+                r0.position.y + cameraRearHeightOffset,
+                r0.position.z -
+                cameraRearForward.z * currentCameraDistance
+            );
+
+            camera.position.lerp(
+                cameraRearDesiredPosition,
+                cameraRearAlignStrength
+            );
+        }
     }
 
     if (controls.enabled) {

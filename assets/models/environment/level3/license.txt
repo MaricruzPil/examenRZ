@@ -1,0 +1,8 @@
+Model Information:
+* title:	Simple Exit Sign
+* source:	https://sketchfab.com/3d-models/simple-exit-sign-a4f9a27581e74ca89aa6a8f6183e4ad1
+* author:	trashbinkr (https://sketchfab.com/ChristopherKR)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
