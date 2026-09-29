@@ -14,7 +14,7 @@
 
 **Alumno(a):** Maricruz Pineda Lara 
 **Matrícula:** 22200789 
-**Fecha:** SEPTIEMRE 2026
+**Fecha:** SEPTIEMBRE 2026
 
 ---
 
@@ -147,6 +147,8 @@ Cuando los tres soportes son destruidos comienza el protocolo:
 
 La iluminación cambia a estado de emergencia y R-0 dispone de **30 segundos** para llegar a la salida.
 
+Durante EVAC aparece un modelo 3D **EXIT** integrado en la zona de evacuación. Este modelo funciona como referencia visual de la salida, pero la condición real de victoria continúa dependiendo de que R-0 alcance la zona de evacuación.
+
 ---
 
 # 4. Reglas del juego
@@ -166,6 +168,16 @@ Las principales reglas son:
 - Cada nivel posee un tiempo límite.
 - Durante EVAC existe un temporizador especial de 30 segundos.
 - Al finalizar una partida se presenta un estado de victoria o derrota.
+
+---
+
+## Sistema de pausa
+
+Durante una partida activa el HUD muestra un botón **PAUSA**. Al utilizarlo aparece la pantalla **JUEGO EN PAUSA**, desde la cual se puede continuar la partida.
+
+Mientras el juego está pausado se bloquean las acciones del jugador, se congelan los temporizadores y se detienen las actualizaciones relevantes del gameplay. La música y los sonidos que corresponda se pausan y posteriormente continúan desde su posición.
+
+El sistema respeta estados especiales como recarga, EVAC, victoria y derrota.
 
 ---
 
@@ -205,6 +217,13 @@ VICTORIA
 La pantalla final muestra:
 
 **REACTOR ZERO ESTABILIZADO**
+
+En la victoria final del videojuego también se presenta el crédito:
+
+```text
+AUTOR
+MARICRUZ PINEDA LARA
+```
 
 ---
 
@@ -416,6 +435,10 @@ Cuando una pared u obstáculo estructural se encuentra entre R-0 y la cámara, e
 
 Cuando el obstáculo deja de interferir, la cámara recupera progresivamente una distancia de visualización adecuada.
 
+Durante el desplazamiento, la cámara puede recuperar progresivamente una posición posterior respecto a R-0 utilizando la orientación actual del personaje como referencia. La intervención manual del jugador con el mouse tiene prioridad temporalmente; después de esa interacción, la cámara puede volver de forma suave a su posición de seguimiento.
+
+La detección de obstáculos continúa teniendo prioridad sobre el seguimiento para evitar que la cámara atraviese paredes o estructuras.
+
 Esto evita que el jugador observe accidentalmente el exterior de las instalaciones al colocar la cámara detrás de una pared.
 
 ---
@@ -424,7 +447,7 @@ Esto evita que el jugador observe accidentalmente el exterior de las instalacion
 
 El sistema de física utiliza **Rapier 3D**.
 
-Rapier administra cuerpos rígidos y colliders que representan las superficies físicas del escenario. Los colliders son las formas utilizadas para generar contactos y detectar colisiones. :chatgpt-content-reference{index="0"}
+Rapier administra cuerpos rígidos y colliders que representan las superficies físicas del escenario. Los colliders son las formas utilizadas para generar contactos y detectar colisiones.
 
 El proyecto utiliza diferentes tipos de cuerpos dependiendo de su función.
 
@@ -509,39 +532,47 @@ La estructura general del proyecto es:
 
 ```text
 reactor-zero/
-│
-├── index.html
-├── README.md
-│
-├── assets/
-│   │
-│   ├── css/
-│   │   └── styles.css
-│   │
-│   ├── js/
-│   │   ├── main.js
-│   │   ├── game.js
-│   │   ├── player.js
-│   │   ├── physics.js
-│   │   ├── levels.js
-│   │   └── ui.js
-│   │
-│   └── models/
-│       │
-│       ├── character/
-│       ├── environment/
-│       ├── props/
-│       ├── decoration/
-│       ├── anomaly/
-│       ├── cores/
-│       ├── lab/
-│       ├── reactor/
-│       ├── soporte/
-│       ├── control-panel/
-│       └── spind/
-│
-└── docs/
-    └── screenshots/
+|
+|-- index.html
+|-- README.md
+|
+|-- assets/
+|   |
+|   |-- favicon/
+|   |
+|   |-- css/
+|   |   |-- styles.css
+|   |
+|   |-- js/
+|   |   |-- main.js
+|   |   |-- game.js
+|   |   |-- player.js
+|   |   |-- physics.js
+|   |   |-- levels.js
+|   |   |-- ui.js
+|   |
+|   |-- sounds/
+|   |   |-- music/
+|   |   |-- sfx/
+|   |
+|   |-- models/
+|       |
+|       |-- character/
+|       |-- environment/
+|       |   |-- level1/
+|       |   |-- level3/
+|       |-- props/
+|       |-- decoration/
+|       |-- anomaly/
+|       |-- cores/
+|       |-- lab/
+|       |-- reactor/
+|       |-- soporte/
+|       |-- control-panel/
+|       |-- spind/
+|
+|-- docs/
+    |-- screenshots/
 ```
 
 La mayor parte de la lógica funcional se encuentra actualmente en `assets/js/main.js`.
@@ -720,12 +751,47 @@ recurso original.
 
 ---
 
-## Sonidos
+## Sonidos y música
 
-La versión actual de Reactor Zero no utiliza recursos externos de audio.
-## Sonidos
+El videojuego utiliza música ambiental por nivel y efectos de sonido asociados a eventos del gameplay.
 
-La versión documentada actualmente no utiliza recursos externos de audio.
+Archivos de música:
+
+- `assets/sounds/music/level1_factory.mp3`
+- `assets/sounds/music/level2_lab.mp3`
+- `assets/sounds/music/level3_reactor.mp3`
+
+Efectos de sonido:
+
+- `assets/sounds/sfx/energy_impact.mp3`
+- `assets/sounds/sfx/energy_pulse.mp3`
+- `assets/sounds/sfx/energy_recharge.mp3`
+- `assets/sounds/sfx/evacuation_alarm.mp3`
+- `assets/sounds/sfx/generator_activate.mp3`
+- `assets/sounds/sfx/objective_destroyed.mp3`
+- `assets/sounds/sfx/victory.mp3`
+- `assets/sounds/sfx/lost-energy.mp3`
+- `assets/sounds/sfx/game-over.mp3`
+- `assets/sounds/sfx/buttom.mp3`
+
+Cada nivel posee música ambiental. Los efectos se reproducen según eventos del juego, incluyendo ataque, impacto, activación, recarga, objetivos, pérdida de energía, derrota, victoria y botones.
+
+La fase EVAC utiliza una alarma de emergencia. El sistema de audio está integrado con la pausa para detener y continuar los sonidos cuando corresponde.
+
+Recursos con origen documentado en Pixabay:
+
+- Level 1 Factory: https://pixabay.com/music/epic-classical-blade-runnervangelis-lead-epic-synth-theme-dark-waves-pt-2-446512/
+- Level 2 Laboratory: https://pixabay.com/music/low-drones-sci-fi-ambient-347390/
+- Level 3 Reactor: https://pixabay.com/music/build-up-scenes-the-origin-289077/
+- Energy Pulse: https://pixabay.com/sound-effects/film-special-effects-high-voltage-spark-486895/
+- Energy Impact: https://pixabay.com/sound-effects/film-special-effects-ground-impact-352053/
+- Generator Activate: https://pixabay.com/sound-effects/film-special-effects-level-up-2-540176/
+- Energy Recharge: https://pixabay.com/sound-effects/film-special-effects-energy-drink-effect-230559/
+- Objective Destroyed: https://pixabay.com/sound-effects/film-special-effects-cinematic-electricity-explosive-stinger-energy-burst-1-228344/
+- Evacuation Alarm: https://pixabay.com/sound-effects/film-special-effects-sci-fi-alarm-95054/
+- Victory: https://pixabay.com/sound-effects/film-special-effects-achievement-badge-pop-sound-2-547865/
+
+Para `lost-energy.mp3`, `game-over.mp3` y `buttom.mp3`, la referencia de origen queda pendiente de documentar si es necesario.
 
 ---
 
@@ -755,6 +821,9 @@ Entre los aspectos trabajados con asistencia de IA se encuentran:
 - transiciones entre niveles;
 - cámara en tercera persona;
 - camera collision;
+- recuperación progresiva de cámara detrás de R-0;
+- sistema de pausa;
+- sistema de audio;
 - limpieza de objetos entre niveles;
 - marcadores visuales;
 - sistema de evacuación;
@@ -790,6 +859,8 @@ Inicialmente la cámara podía atravesar las paredes y mostrar el exterior de la
 
 Se implementó un sistema de detección que reposiciona la cámara cuando existe una estructura entre el jugador y la posición deseada.
 
+También se integró una recuperación progresiva de la posición posterior de la cámara durante el movimiento de R-0, respetando la intervención manual del jugador y la prioridad de la oclusión.
+
 ### Raycast y etiquetas
 
 Después de incorporar etiquetas mediante `THREE.Sprite` a los soportes del Nivel 3, el raycast de los pulsos intentaba procesar también estos elementos visuales.
@@ -821,6 +892,7 @@ Se implementó y verificó:
 - etiquetas;
 - iluminación de emergencia;
 - zona EVAC;
+- salida 3D EXIT como referencia visual de evacuación;
 - contador de 30 segundos;
 - victoria;
 - derrota.
@@ -845,6 +917,8 @@ Entre las pruebas se incluyen:
 - cámara;
 - zoom;
 - camera collision;
+- oclusión de cámara;
+- recuperación progresiva de la cámara detrás de R-0;
 - colliders;
 - objetos dinámicos;
 - generadores;
@@ -856,8 +930,15 @@ Entre las pruebas se incluyen:
 - soportes del reactor;
 - raycast;
 - temporizadores;
+- pausa y continuación;
+- pausa y reanudación de audio;
+- música de los tres niveles;
+- efectos de sonido;
 - EVAC;
+- alarma EVAC;
+- salida 3D EXIT del Nivel 3;
 - victoria;
+- pantalla final y crédito del autor;
 - derrota;
 - reinicio;
 - transiciones entre niveles.
@@ -977,39 +1058,21 @@ La versión final del videojuego será publicada mediante **GitHub Pages**.
 **Repositorio:**
 
 ```text
-[AGREGAR URL DEL REPOSITORIO]
+https://github.com/MaricruzPil/reactor-zero
 ```
 
 **Videojuego publicado:**
 
 ```text
-[AGREGAR URL DE GITHUB PAGES]
+https://maricruzpil.github.io/reactor-zero/
 ```
 
-Antes de la entrega final se debe verificar desde la versión publicada:
 
-- carga inicial;
-- modelos;
-- texturas;
-- personaje;
-- animaciones;
-- controles;
-- cámara;
-- física;
-- pulsos;
-- HUD;
-- puntuación;
-- Nivel 1;
-- Nivel 2;
-- Nivel 3;
-- victoria;
-- derrota;
-- reinicio.
-
----
 
 # 25. Estado del proyecto
 
 **Estado actual: versión funcional completa.**
 
 Los tres niveles pueden jugarse de forma consecutiva desde el inicio hasta la pantalla de victoria.
+
+Los sistemas finales de cámara, audio, pausa y evacuación fueron integrados y probados.
