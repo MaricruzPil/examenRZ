@@ -50,6 +50,10 @@ let cableModel = null;
 let computerModel = null;
 let ventModel = null;
 const level1Decorations = [];
+let level1IndustrialBackdrop = null;
+let level1PreviousFog = null;
+let level1FogOverridden = false;
+let level1PreviousIndustrialBackgroundVisible = true;
 const level2Decorations = [];
 let labModel = null;
 let destroyedUnstableCores = 0;
@@ -271,7 +275,7 @@ console.log(
 );
 
 // Ambiente exterior industrial
-const environmentColor = 0x26343d;
+const environmentColor = 0x000000;
 
 scene.background = new THREE.Color(
     environmentColor
@@ -347,6 +351,168 @@ renderer.shadowMap.enabled = true;
 document
     .getElementById("game-container")
     .appendChild(renderer.domElement);
+
+/* ===============================
+   AUDIO
+================================ */
+
+const audioSystem = (() => {
+
+    const musicVolume = 0.25;
+    const sfxVolumes = {
+        energyPulse: 0.45,
+        energyImpact: 0.40,
+        energyRecharge: 0.50,
+        evacuationAlarm: 0.45,
+        generatorActivate: 0.55,
+        objectiveDestroyed: 0.60,
+        victory: 0.60
+    };
+
+    const musicTracks = {
+        1: new Audio("./assets/sounds/music/level1_factory.mp3"),
+        2: new Audio("./assets/sounds/music/level2_lab.mp3"),
+        3: new Audio("./assets/sounds/music/level3_reactor.mp3")
+    };
+
+    const sfx = {
+        energyPulse: new Audio("./assets/sounds/sfx/energy_pulse.mp3"),
+        energyImpact: new Audio("./assets/sounds/sfx/energy_impact.mp3"),
+        energyRecharge: new Audio("./assets/sounds/sfx/energy_recharge.mp3"),
+        evacuationAlarm: new Audio("./assets/sounds/sfx/evacuation_alarm.mp3"),
+        generatorActivate: new Audio("./assets/sounds/sfx/generator_activate.mp3"),
+        objectiveDestroyed: new Audio("./assets/sounds/sfx/objective_destroyed.mp3"),
+        victory: new Audio("./assets/sounds/sfx/victory.mp3")
+    };
+
+    let unlocked = false;
+    let pendingLevelMusic = null;
+    let currentMusic = null;
+    let alarmPlaying = false;
+    let victoryPlayed = false;
+
+    Object
+        .values(musicTracks)
+        .forEach((track) => {
+            track.loop = true;
+            track.volume = musicVolume;
+            track.preload = "auto";
+        });
+
+    Object
+        .entries(sfx)
+        .forEach(([key, sound]) => {
+            sound.volume = sfxVolumes[key];
+            sound.preload = "auto";
+        });
+
+    sfx.evacuationAlarm.loop = true;
+
+    const safePlay = (audio) => {
+        const playPromise = audio.play();
+
+        if (playPromise && playPromise.catch) {
+            playPromise.catch(() => { });
+        }
+    };
+
+    const stopAudio = (audio) => {
+        audio.pause();
+        audio.currentTime = 0;
+    };
+
+    const stopMusic = () => {
+        if (currentMusic) {
+            stopAudio(currentMusic);
+            currentMusic = null;
+        }
+    };
+
+    const playLevelMusic = (level) => {
+        pendingLevelMusic = level;
+
+        if (!unlocked) {
+            return;
+        }
+
+        const nextMusic =
+            musicTracks[level];
+
+        if (!nextMusic) {
+            return;
+        }
+
+        if (currentMusic === nextMusic) {
+            return;
+        }
+
+        stopMusic();
+        currentMusic = nextMusic;
+        currentMusic.currentTime = 0;
+        safePlay(currentMusic);
+    };
+
+    const playSfx = (key) => {
+        const source =
+            sfx[key];
+
+        if (!source || !unlocked) {
+            return;
+        }
+
+        const instance =
+            source.cloneNode();
+
+        instance.volume =
+            source.volume;
+
+        safePlay(instance);
+    };
+
+    const startEvacAlarm = () => {
+        if (!unlocked || alarmPlaying) {
+            return;
+        }
+
+        alarmPlaying = true;
+        sfx.evacuationAlarm.currentTime = 0;
+        safePlay(sfx.evacuationAlarm);
+    };
+
+    const stopEvacAlarm = () => {
+        if (!alarmPlaying) {
+            return;
+        }
+
+        stopAudio(sfx.evacuationAlarm);
+        alarmPlaying = false;
+    };
+
+    return {
+        unlock() {
+            unlocked = true;
+
+            if (pendingLevelMusic !== null) {
+                playLevelMusic(pendingLevelMusic);
+            }
+        },
+        playLevelMusic,
+        stopMusic,
+        playSfx,
+        startEvacAlarm,
+        stopEvacAlarm,
+        playVictory() {
+            if (victoryPlayed || !unlocked) {
+                return;
+            }
+
+            victoryPlayed = true;
+            stopMusic();
+            stopEvacAlarm();
+            playSfx("victory");
+        }
+    };
+})();
 
 
 /* ===============================
@@ -889,6 +1055,856 @@ function createIndustrialBridge(
     industrialBackground.add(
         bridge
     );
+}
+
+function createLevel1IndustrialBackdrop(options = {}) {
+
+    const config = {
+        name: "level1IndustrialBackdrop",
+        fogColor: 0x11191f,
+        fogDensity: 0.018,
+        ceilingSize: [42, 0.6, 34],
+        ceilingY: 13.8,
+        beamZLength: 33,
+        crossBeamWidth: 40,
+        pipeRuns: [
+            { position: [-7, 10.8, -14.8], length: 18, axis: "x" },
+            { position: [8, 11.3, 14.7], length: 20, axis: "x" },
+            { position: [-18.5, 9.8, 0], length: 22, axis: "z" },
+            { position: [18.5, 10.6, -1], length: 18, axis: "z" }
+        ],
+        lightPositions: [
+            [-9, 12.2, -8],
+            [9, 12.2, -8],
+            [-9, 12.2, 8],
+            [9, 12.2, 8]
+        ],
+        skipDoorOpening: true,
+        ...options
+    };
+
+    clearLevel1IndustrialBackdrop();
+
+    level1PreviousFog = scene.fog;
+    level1FogOverridden = true;
+    scene.fog = new THREE.FogExp2(
+        config.fogColor,
+        config.fogDensity
+    );
+
+    level1PreviousIndustrialBackgroundVisible =
+        industrialBackground.visible;
+
+    industrialBackground.visible = false;
+
+    level1IndustrialBackdrop = new THREE.Group();
+    level1IndustrialBackdrop.name =
+        config.name;
+
+    const darkMetalMaterial =
+        new THREE.MeshStandardMaterial({
+            color: 0x10171c,
+            roughness: 0.92,
+            metalness: 0.45
+        });
+
+    const beamMaterial =
+        new THREE.MeshStandardMaterial({
+            color: 0x18242b,
+            roughness: 0.85,
+            metalness: 0.55
+        });
+
+    const pipeMaterial =
+        new THREE.MeshStandardMaterial({
+            color: 0x26343a,
+            roughness: 0.82,
+            metalness: 0.6
+        });
+
+    const lightMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0x8fd8ff
+        });
+
+    level1IndustrialBackdrop.userData.ownedMaterials = [
+        darkMetalMaterial,
+        beamMaterial,
+        pipeMaterial,
+        lightMaterial
+    ];
+
+    level1IndustrialBackdrop.userData.ownedGeometries = [];
+
+    const ceiling =
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                config.ceilingSize[0],
+                config.ceilingSize[1],
+                config.ceilingSize[2]
+            ),
+            darkMetalMaterial
+        );
+
+    level1IndustrialBackdrop
+        .userData
+        .ownedGeometries
+        .push(ceiling.geometry);
+
+    ceiling.name = "level1IndustrialBackdropCeiling";
+    ceiling.position.set(0, config.ceilingY, 0);
+    ceiling.receiveShadow = false;
+    level1IndustrialBackdrop.add(ceiling);
+
+    const beamPositions = [-14, -7, 0, 7, 14];
+    const backdropBeams = [];
+
+    beamPositions.forEach((x) => {
+
+        const beam =
+            new THREE.Mesh(
+                new THREE.BoxGeometry(0.45, 0.75, config.beamZLength),
+                beamMaterial
+            );
+
+        level1IndustrialBackdrop
+            .userData
+            .ownedGeometries
+            .push(beam.geometry);
+
+        beam.position.set(x, 13.1, 0);
+        level1IndustrialBackdrop.add(beam);
+        backdropBeams.push(beam);
+    });
+
+    const backdropCrossBeams = [];
+
+    [-11, 0, 11].forEach((z) => {
+
+        const crossBeam =
+            new THREE.Mesh(
+                new THREE.BoxGeometry(config.crossBeamWidth, 0.55, 0.45),
+                beamMaterial
+            );
+
+        level1IndustrialBackdrop
+            .userData
+            .ownedGeometries
+            .push(crossBeam.geometry);
+
+        crossBeam.position.set(0, 12.7, z);
+        level1IndustrialBackdrop.add(crossBeam);
+        backdropCrossBeams.push(crossBeam);
+    });
+
+    level1IndustrialBackdrop.userData.ceiling = ceiling;
+    level1IndustrialBackdrop.userData.beams = backdropBeams;
+    level1IndustrialBackdrop.userData.crossBeams = backdropCrossBeams;
+
+    createLevel1BackdropWallModules(
+        level1IndustrialBackdrop,
+        config
+    );
+
+    config.pipeRuns.forEach((pipeRun) => {
+
+        const pipe =
+            new THREE.Mesh(
+                new THREE.CylinderGeometry(
+                    0.18,
+                    0.18,
+                    pipeRun.length,
+                    12
+                ),
+                pipeMaterial
+            );
+
+        level1IndustrialBackdrop
+            .userData
+            .ownedGeometries
+            .push(pipe.geometry);
+
+        if (pipeRun.axis === "x") {
+            pipe.rotation.z = Math.PI / 2;
+        } else {
+            pipe.rotation.x = Math.PI / 2;
+        }
+
+        pipe.position.set(
+            pipeRun.position[0],
+            pipeRun.position[1],
+            pipeRun.position[2]
+        );
+
+        level1IndustrialBackdrop.add(pipe);
+    });
+
+    const backdropFixtures = [];
+    const backdropLights = [];
+
+    config.lightPositions.forEach((position) => {
+
+        const fixture =
+            new THREE.Mesh(
+                new THREE.BoxGeometry(1.6, 0.15, 0.45),
+                lightMaterial
+            );
+
+        level1IndustrialBackdrop
+            .userData
+            .ownedGeometries
+            .push(fixture.geometry);
+
+        fixture.position.set(
+            position[0],
+            position[1],
+            position[2]
+        );
+
+        level1IndustrialBackdrop.add(fixture);
+        backdropFixtures.push(fixture);
+
+        const light =
+            new THREE.PointLight(
+                0x77cfff,
+                0.45,
+                10,
+                2
+            );
+
+        light.position.set(
+            position[0],
+            position[1] - 0.2,
+            position[2]
+        );
+
+        level1IndustrialBackdrop.add(light);
+        backdropLights.push(light);
+    });
+
+    level1IndustrialBackdrop.userData.fixtures =
+        backdropFixtures;
+    level1IndustrialBackdrop.userData.lights =
+        backdropLights;
+
+    scene.add(level1IndustrialBackdrop);
+}
+
+function createLevel1BackdropWallModules(
+    backdropGroup,
+    options = {}
+) {
+
+    const wallOverlap = 0.035;
+    const ceilingThickness = 0.6;
+    const backX =
+        options.backX || [-12, -8, -4, 0, 4, 8, 12];
+    const sideZ =
+        options.sideZ || [-8, -4, 0, 4, 8];
+    const frontX =
+        options.frontX || [-12, -8, -4, 0, 4, 8, 12];
+    const leftX =
+        options.leftX ?? -16;
+    const rightX =
+        options.rightX ?? 16;
+    const backZ =
+        options.backZ ?? -12;
+    const frontZ =
+        options.frontZ ?? 12;
+    const skipDoorOpening =
+        options.skipDoorOpening === true;
+
+    const moduleAssets = {
+        straight:
+            "./assets/models/environment/level1/walls/WallAstra_Straight.gltf",
+        window:
+            "./assets/models/environment/level1/walls/WallAstra_Straight_Window.gltf",
+        cornerInner:
+            "./assets/models/environment/level1/walls/WallAstra_Corner_Square_Inner.gltf",
+        topAstra:
+            "./assets/models/environment/level1/walls/TopAstra_Straight.gltf",
+        topCable:
+            "./assets/models/environment/level1/walls/TopCables_Straight.gltf",
+        topCableHanging:
+            "./assets/models/environment/level1/walls/TopCables_Straight_Hanging.gltf",
+        topCableCorner:
+            "./assets/models/environment/level1/walls/TopCables_Corner_Square_Inner.gltf"
+    };
+
+    const moduleLibrary = {};
+    const modulesGroup = new THREE.Group();
+    modulesGroup.name = "level1IndustrialBackdropModules";
+    backdropGroup.add(modulesGroup);
+
+    const loadModule = (key, path) => {
+
+        loader.load(
+            path,
+            (gltf) => {
+
+                if (level1IndustrialBackdrop !== backdropGroup) {
+                    return;
+                }
+
+                moduleLibrary[key] = gltf.scene;
+
+                gltf.scene.traverse((child) => {
+
+                    if (child.isMesh) {
+                        child.castShadow = false;
+                        child.receiveShadow = false;
+                    }
+                });
+
+                buildLevel1BackdropWallModules(
+                    modulesGroup,
+                    moduleLibrary
+                );
+            },
+            undefined,
+            (error) => {
+                console.error(
+                    `Error cargando módulo visual ${key}:`,
+                    error
+                );
+            }
+        );
+    };
+
+    Object
+        .entries(moduleAssets)
+        .forEach(([key, path]) => {
+            loadModule(key, path);
+        });
+
+    function buildLevel1BackdropWallModules(
+        targetGroup,
+        library
+    ) {
+
+        if (
+            !library.straight ||
+            !library.window ||
+            !library.cornerInner ||
+            !library.topAstra ||
+            !library.topCable ||
+            !library.topCableHanging ||
+            !library.topCableCorner
+        ) {
+            return;
+        }
+
+        targetGroup.clear();
+
+        const getModelMetrics = (model) => {
+
+            const box =
+                new THREE.Box3().setFromObject(model);
+
+            const size =
+                new THREE.Vector3();
+
+            box.getSize(size);
+
+            return {
+                minY: box.min.y,
+                maxY: box.max.y,
+                height: size.y
+            };
+        };
+
+        const straightMetrics =
+            getModelMetrics(library.straight);
+
+        const topAstraMetrics =
+            getModelMetrics(library.topAstra);
+
+        const topCableMetrics =
+            getModelMetrics(library.topCable);
+
+        const topCableHangingMetrics =
+            getModelMetrics(library.topCableHanging);
+
+        const topCableCornerMetrics =
+            getModelMetrics(library.topCableCorner);
+
+        const originalWallMaxY =
+            straightMetrics.maxY;
+
+        const upperWallBaseY =
+            originalWallMaxY -
+            straightMetrics.minY -
+            wallOverlap;
+
+        const firstRowMaxY =
+            upperWallBaseY +
+            straightMetrics.maxY;
+
+        const upperWallSecondRowY =
+            firstRowMaxY -
+            straightMetrics.minY -
+            wallOverlap;
+
+        const secondRowMaxY =
+            upperWallSecondRowY +
+            straightMetrics.maxY;
+
+        const topTrimY =
+            secondRowMaxY -
+            topAstraMetrics.minY -
+            wallOverlap;
+
+        const topTrimMaxY =
+            topTrimY +
+            topAstraMetrics.maxY;
+
+        const topCablesY =
+            topTrimMaxY -
+            topCableMetrics.minY -
+            wallOverlap;
+
+        const topCablesMaxY =
+            Math.max(
+                topCablesY + topCableMetrics.maxY,
+                topCablesY + topCableHangingMetrics.maxY,
+                topCablesY + topCableCornerMetrics.maxY
+            );
+
+        const ceilingBottomY =
+            topCablesMaxY -
+            wallOverlap;
+
+        const ceilingCenterY =
+            ceilingBottomY +
+            ceilingThickness / 2;
+
+        if (backdropGroup.userData.ceiling) {
+            backdropGroup.userData.ceiling.position.y =
+                ceilingCenterY;
+        }
+
+        if (backdropGroup.userData.beams) {
+            backdropGroup.userData.beams.forEach((beam) => {
+                beam.position.y =
+                    ceilingBottomY - 0.7;
+            });
+        }
+
+        if (backdropGroup.userData.crossBeams) {
+            backdropGroup.userData.crossBeams.forEach((beam) => {
+                beam.position.y =
+                    ceilingBottomY - 1.1;
+            });
+        }
+
+        if (backdropGroup.userData.fixtures) {
+            backdropGroup.userData.fixtures.forEach((fixture) => {
+                fixture.position.y =
+                    ceilingBottomY - 1.45;
+            });
+        }
+
+        if (backdropGroup.userData.lights) {
+            backdropGroup.userData.lights.forEach((light) => {
+                light.position.y =
+                    ceilingBottomY - 1.65;
+            });
+        }
+
+        backdropGroup.userData.wallMetrics = {
+            originalWallMaxY,
+            wallModuleHeight: straightMetrics.height,
+            wallModuleMinY: straightMetrics.minY,
+            wallModuleMaxY: straightMetrics.maxY,
+            firstRowY: upperWallBaseY,
+            secondRowY: upperWallSecondRowY,
+            ceilingBottomY
+        };
+        backdropGroup.userData.rebuildLevel1BackdropWallModules =
+            () => {
+                buildLevel1BackdropWallModules(
+                    targetGroup,
+                    library
+                );
+            };
+
+        const addModule = (
+            key,
+            x,
+            y,
+            z,
+            rotationY
+        ) => {
+
+            if (!key || !library[key]) {
+                return;
+            }
+
+            const module =
+                library[key].clone(true);
+
+            module.position.set(
+                x,
+                y,
+                z
+            );
+
+            module.rotation.y = rotationY;
+
+            targetGroup.add(module);
+        };
+
+        const straightRows = [
+            {
+                index: 0,
+                y: upperWallBaseY,
+                back: backX.map((_, index) =>
+                    index % 3 === 2 ? "window" : "straight"
+                ),
+                left: sideZ.map((_, index) =>
+                    index % 4 === 1 ? "window" : "straight"
+                ),
+                right: sideZ.map((_, index) =>
+                    index % 3 === 0 ? "window" : "straight"
+                ),
+                front: frontX.map((_, index) =>
+                    index % 4 === 1 ? "window" : "straight"
+                )
+            },
+            {
+                index: 1,
+                y: upperWallSecondRowY,
+                back: backX.map((_, index) =>
+                    index % 3 === 0 ? "window" : "straight"
+                ),
+                left: sideZ.map((_, index) =>
+                    index % 3 === 2 ? "window" : "straight"
+                ),
+                right: sideZ.map((_, index) =>
+                    index % 3 === 1 ? "window" : "straight"
+                ),
+                front: frontX.map((_, index) =>
+                    index % 3 === 0 ? "window" : "straight"
+                )
+            }
+        ];
+
+        const rowDefinitions = [
+            ["back", backX],
+            ["left", sideZ],
+            ["right", sideZ],
+            ["front", frontX]
+        ];
+
+        const rowsHaveValidLengths =
+            straightRows.every((row) => {
+                return rowDefinitions.every(([side, positions]) => {
+                    return row[side].length === positions.length;
+                });
+            });
+
+        if (!rowsHaveValidLengths) {
+            return;
+        }
+
+        const getDoorBox = () => {
+
+            if (!doorFrameModel) {
+                return null;
+            }
+
+            doorFrameModel.updateMatrixWorld(true);
+
+            return new THREE.Box3().setFromObject(doorFrameModel);
+        };
+
+        const frontDoorBox =
+            getDoorBox();
+
+        const skippedFirstRowFrontModules = [];
+
+        const shouldSkipFirstRowFrontModule = (
+            key,
+            x,
+            y,
+            z,
+            rotationY
+        ) => {
+
+            if (!frontDoorBox) {
+                return false;
+            }
+
+            const candidate =
+                library[key].clone(true);
+
+            candidate.position.set(
+                x,
+                y,
+                z
+            );
+
+            candidate.rotation.y = rotationY;
+            candidate.updateMatrixWorld(true);
+
+            const candidateBox =
+                new THREE.Box3().setFromObject(candidate);
+
+            return candidateBox.intersectsBox(frontDoorBox);
+        };
+
+        straightRows.forEach((row) => {
+
+            backX.forEach((x, index) => {
+                addModule(
+                    row.back[index],
+                    x,
+                    row.y,
+                    backZ,
+                    Math.PI / 2
+                );
+            });
+
+            sideZ.forEach((z, index) => {
+                addModule(
+                    row.left[index],
+                    leftX,
+                    row.y,
+                    z,
+                    Math.PI
+                );
+
+                addModule(
+                    row.right[index],
+                    rightX,
+                    row.y,
+                    z,
+                    0
+                );
+            });
+
+            frontX.forEach((x, index) => {
+
+                if (
+                    skipDoorOpening &&
+                    row.index === 0 &&
+                    shouldSkipFirstRowFrontModule(
+                        row.front[index],
+                        x,
+                        row.y,
+                        frontZ,
+                        -Math.PI / 2
+                    )
+                ) {
+                    skippedFirstRowFrontModules.push({
+                        x,
+                        index
+                    });
+                    return;
+                }
+
+                addModule(
+                    row.front[index],
+                    x,
+                    row.y,
+                    frontZ,
+                    -Math.PI / 2
+                );
+            });
+        });
+
+        backdropGroup.userData.skippedFirstRowFrontModules =
+            skippedFirstRowFrontModules;
+
+        const topSegments = [
+            {
+                positions: backX,
+                z: backZ,
+                rotation: Math.PI / 2,
+                hanging: [2, 5]
+            },
+            {
+                positions: sideZ,
+                x: leftX,
+                rotation: Math.PI,
+                hanging: [1]
+            },
+            {
+                positions: sideZ,
+                x: rightX,
+                rotation: 0,
+                hanging: [3]
+            },
+            {
+                positions: frontX,
+                z: frontZ,
+                rotation: -Math.PI / 2,
+                hanging: [1]
+            }
+        ];
+
+        topSegments.forEach((segment) => {
+
+            segment.positions.forEach((position, index) => {
+
+                const x =
+                    segment.x !== undefined
+                        ? segment.x
+                        : position;
+
+                const z =
+                    segment.z !== undefined
+                        ? segment.z
+                        : position;
+
+                addModule(
+                    "topAstra",
+                    x,
+                    topTrimY,
+                    z,
+                    segment.rotation
+                );
+
+                addModule(
+                    segment.hanging.includes(index)
+                        ? "topCableHanging"
+                        : "topCable",
+                    x,
+                    topCablesY,
+                    z,
+                    segment.rotation
+                );
+            });
+        });
+
+        const corners = [
+            { x: leftX, z: backZ, rotation: Math.PI },
+            { x: rightX, z: backZ, rotation: Math.PI / 2 },
+            { x: leftX, z: frontZ, rotation: -Math.PI / 2 },
+            { x: rightX, z: frontZ, rotation: 0 }
+        ];
+
+        corners.forEach((corner) => {
+
+            addModule(
+                "cornerInner",
+                corner.x,
+                upperWallBaseY,
+                corner.z,
+                corner.rotation
+            );
+
+            addModule(
+                "cornerInner",
+                corner.x,
+                upperWallSecondRowY,
+                corner.z,
+                corner.rotation
+            );
+
+            addModule(
+                "topCableCorner",
+                corner.x,
+                topCablesY,
+                corner.z,
+                corner.rotation
+            );
+        });
+    }
+
+
+}
+
+function clearLevel1IndustrialBackdrop() {
+
+    if (!level1IndustrialBackdrop) {
+        return;
+    }
+
+    scene.remove(level1IndustrialBackdrop);
+
+    if (level1IndustrialBackdrop.userData.ownedGeometries) {
+
+        level1IndustrialBackdrop
+            .userData
+            .ownedGeometries
+            .forEach((geometry) => {
+                geometry.dispose();
+            });
+    }
+
+    if (level1IndustrialBackdrop.userData.ownedMaterials) {
+
+        level1IndustrialBackdrop
+            .userData
+            .ownedMaterials
+            .forEach((material) => {
+                material.dispose();
+            });
+    }
+
+    level1IndustrialBackdrop = null;
+
+    if (level1FogOverridden) {
+        scene.fog = level1PreviousFog;
+        level1PreviousFog = null;
+        level1FogOverridden = false;
+    }
+
+    industrialBackground.visible =
+        level1PreviousIndustrialBackgroundVisible;
+}
+
+createLevel1IndustrialBackdrop();
+
+function createLevel2IndustrialBackdrop() {
+
+    createLevel1IndustrialBackdrop({
+        name: "level2IndustrialBackdrop",
+        fogColor: 0x071118,
+        fogDensity: 0.014,
+        ceilingSize: [44, 0.6, 36],
+        beamZLength: 35,
+        crossBeamWidth: 42,
+        pipeRuns: [
+            { position: [-9, 10.6, -14.8], length: 20, axis: "x" },
+            { position: [9, 10.9, 14.8], length: 20, axis: "x" },
+            { position: [-18.5, 10.2, 0], length: 20, axis: "z" },
+            { position: [18.5, 10.2, 0], length: 20, axis: "z" }
+        ],
+        lightPositions: [
+            [-10, 12.1, -7],
+            [10, 12.1, -7],
+            [-10, 12.1, 7],
+            [10, 12.1, 7]
+        ],
+        skipDoorOpening: false
+    });
+}
+
+function createLevel3IndustrialBackdrop() {
+
+    createLevel1IndustrialBackdrop({
+        name: "level3IndustrialBackdrop",
+        fogColor: 0x130908,
+        fogDensity: 0.012,
+        ceilingSize: [46, 0.6, 38],
+        beamZLength: 37,
+        crossBeamWidth: 44,
+        pipeRuns: [
+            { position: [-10, 10.8, -15.5], length: 22, axis: "x" },
+            { position: [10, 10.8, 15.5], length: 22, axis: "x" },
+            { position: [-19.2, 10.4, 0], length: 22, axis: "z" },
+            { position: [19.2, 10.4, 0], length: 22, axis: "z" }
+        ],
+        lightPositions: [
+            [-11, 12.1, -8],
+            [11, 12.1, -8],
+            [-11, 12.1, 8],
+            [11, 12.1, 8]
+        ],
+        skipDoorOpening: false
+    });
 }
 
 /* ===============================
@@ -1548,6 +2564,17 @@ loader.load(
         );
 
         scene.add(doorFrame);
+
+        if (
+            level1IndustrialBackdrop &&
+            level1IndustrialBackdrop
+                .userData
+                .rebuildLevel1BackdropWallModules
+        ) {
+            level1IndustrialBackdrop
+                .userData
+                .rebuildLevel1BackdropWallModules();
+        }
 
         rebuildFrontFacade();
         createFrontEntranceBarrier();
@@ -2914,6 +3941,9 @@ startButton.addEventListener(
     "click",
     () => {
 
+        audioSystem.unlock();
+        audioSystem.playLevelMusic(1);
+
         document
             .getElementById(
                 "start-screen"
@@ -2927,7 +3957,7 @@ startButton.addEventListener(
             )
             .classList
             .remove("hidden");
-        
+
         // ===============================
         // INICIO NORMAL DEL JUEGO
         // ===============================
@@ -4635,6 +5665,8 @@ function loadLevel2() {
     currentLevel = 2;
 
     setLevel2Lighting();
+    audioSystem.stopEvacAlarm();
+    audioSystem.playLevelMusic(2);
 
     clearActivePulses();
     clearLevelMissionObjects();
@@ -4642,6 +5674,8 @@ function loadLevel2() {
     resetLevelState();
     levelTimeRemaining = 180;
     updateTimerHud();
+    clearLevel1IndustrialBackdrop();
+    createLevel2IndustrialBackdrop();
     clearLevel1Decorations();
     createLevel2Cores();
     createLevel2DynamicProps();
@@ -5115,6 +6149,7 @@ function startLevel3Escape() {
     level3EscapeActive = true;
     level3EscapeTimeRemaining =
         LEVEL3_ESCAPE_TIME;
+    audioSystem.startEvacAlarm();
 
     if (!level3ExitZone) {
         createLevel3Exit();
@@ -5361,6 +6396,7 @@ function updateLevel3Escape(delta) {
         gameOver = true;
         cancelPendingAttackPulse();
         level3EscapeActive = false;
+        audioSystem.stopEvacAlarm();
 
         gameOverTitle.textContent =
             "TIEMPO AGOTADO";
@@ -5387,6 +6423,7 @@ function showFinalVictory() {
 
     cancelPendingAttackPulse();
     clearObjectiveMarker();
+    audioSystem.playVictory();
     levelTimerRunning = false;
     gameplayActive = false;
 
@@ -5476,6 +6513,8 @@ function showFinalVictory() {
 
 function clearLevel3Objects() {
 
+    audioSystem.stopEvacAlarm();
+
     if (level3Reactor) {
         removeRigidBodyFromObject(level3Reactor);
         scene.remove(level3Reactor);
@@ -5534,11 +6573,15 @@ function loadLevel3() {
 
     currentLevel = 3;
     setLevel3Lighting();
+    audioSystem.stopEvacAlarm();
+    audioSystem.playLevelMusic(3);
 
     clearActivePulses();
     clearLevelMissionObjects();
     clearDynamicProps();
     resetLevelState();
+    clearLevel1IndustrialBackdrop();
+    createLevel3IndustrialBackdrop();
     clearLevel2Decorations();
     levelTimeRemaining = 120;
     updateTimerHud();
@@ -5793,6 +6836,7 @@ window.addEventListener(
                     generator.add(indicatorLight);
 
                     activatedGenerators++;
+                    audioSystem.playSfx("generatorActivate");
                     addScore(100);
                     // Mostrar confirmación de activación
                     notificationMessage.textContent =
@@ -5875,6 +6919,7 @@ window.addEventListener(
 
                 r0Energy = 100;
                 updateEnergyHud();
+                audioSystem.playSfx("energyRecharge");
 
                 subtractScore(
                     rechargePenalty,
@@ -6076,6 +7121,8 @@ function createEnergyPulse() {
 
     const launchData =
         getPulseLaunchData();
+
+    audioSystem.playSfx("energyPulse");
 
     if (resolveImmediatePulseHit(launchData)) {
         return;
@@ -6296,7 +7343,7 @@ function intersectPulseTarget(raycaster, target) {
                 raycast: child.raycast
             });
 
-            child.raycast = () => {};
+            child.raycast = () => { };
         }
 
     });
@@ -6451,6 +7498,7 @@ function applyPulseImpact(hit, pulse) {
     createPulseImpactEffect(hit.point);
 
     if (hit.type === "anomaly") {
+        audioSystem.playSfx("energyImpact");
         energyAnomalyHealth--;
         energyAnomalyHealth =
             Math.max(
@@ -6470,6 +7518,8 @@ function applyPulseImpact(hit, pulse) {
         );
 
         if (energyAnomalyHealth <= 0) {
+
+            audioSystem.playSfx("objectiveDestroyed");
 
             const anomalyToDestroy = energyAnomaly;
 
@@ -6520,6 +7570,7 @@ function applyPulseImpact(hit, pulse) {
     }
 
     if (hit.type === "core") {
+        audioSystem.playSfx("energyImpact");
 
         const core =
             hit.target;
@@ -6560,6 +7611,7 @@ function applyPulseImpact(hit, pulse) {
 
             core.userData.destroyed = true;
             destroyedUnstableCores++;
+            audioSystem.playSfx("objectiveDestroyed");
             addScore(150);
 
             updateLevel2Hud();
@@ -6623,6 +7675,7 @@ function applyPulseImpact(hit, pulse) {
     }
 
     if (hit.type === "support") {
+        audioSystem.playSfx("energyImpact");
 
         const support =
             hit.target;
@@ -6671,6 +7724,7 @@ function applyPulseImpact(hit, pulse) {
 
             support.userData.destroyed = true;
             destroyedReactorSupports++;
+            audioSystem.playSfx("objectiveDestroyed");
             addScore(200);
 
             updateLevel3Hud();
